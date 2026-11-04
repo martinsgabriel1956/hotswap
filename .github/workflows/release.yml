@@ -1,6 +1,6 @@
 name: Release
 
-# Toda versão nova que chega na main vira um release com o .deb, o .rpm e o PKGBUILD do AUR. A versão mora no tauri.conf.json (o "chore: versão X"
+# Toda versão nova que chega na main vira um release com o .deb, o .rpm, o AppImage e o PKGBUILD do AUR. A versão mora no tauri.conf.json (o "chore: versão X"
 # muda ele junto com package.json e Cargo.toml); se a tag v<versão> já existe, o release já foi feito e nada roda.
 on:
   push:
@@ -57,7 +57,7 @@ jobs:
 
       - run: npm ci
 
-      # Testes, .deb, notas e o release: o mesmo script que roda à mão.
+      # Testes, pacotes, notas e o release: o mesmo script que roda à mão.
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}

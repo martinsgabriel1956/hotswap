@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
@@ -118,7 +117,7 @@ pub fn config_path() -> String {
 /// "Abrir o config.json" no projeto com erro: abre no editor padrão do sistema.
 #[tauri::command]
 pub fn open_config() -> Result<(), String> {
-    let mut child = std::process::Command::new("xdg-open").arg(config_path()).spawn().map_err(|e| e.to_string())?;
+    let mut child = crate::host_env::command("xdg-open").arg(config_path()).spawn().map_err(|e| e.to_string())?;
     // Recolhe o xdg-open quando ele sair, senão fica um zumbi por clique.
     std::thread::spawn(move || child.wait());
     Ok(())
@@ -191,11 +190,19 @@ pub fn open_in_editor(path: String) -> Result<bool, String> {
     let cfg = read_config()?;
     if let Some(id) = cfg.editor.as_deref() {
         let app = gio::DesktopAppInfo::new(id).ok_or(format!("{id}: não está mais instalado"))?;
-        app.launch(&[gio::File::for_path(&path)], None::<&gio::AppLaunchContext>).map_err(|e| format!("{}: {e}", app.name()))?;
+        // ponytail: o gio não deixa escolher a pasta, então no AppImage o editor nasce dentro da imagem; trocar por spawn se incomodar.
+        let ctx = gio::AppLaunchContext::new();
+        for (key, value) in crate::host_env::overrides() {
+            match value {
+                Some(value) => ctx.setenv(key, value),
+                None => ctx.unsetenv(key),
+            }
+        }
+        app.launch(&[gio::File::for_path(&path)], Some(&ctx)).map_err(|e| format!("{}: {e}", app.name()))?;
         return Ok(true);
     }
     let Some((program, args)) = editor_argv(cfg.editor_command.as_deref().unwrap_or(""), &path) else { return Ok(false) };
-    let mut child = Command::new(&program).args(args).process_group(0).spawn().map_err(|e| match e.kind() {
+    let mut child = crate::host_env::command(&program).args(args).process_group(0).spawn().map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => format!("{program}: não encontrado"),
         _ => format!("{program}: {e}"),
     })?;
@@ -251,7 +258,7 @@ fn pair(api: Vec<Wt>, front: Vec<Wt>, manual: &[Pair]) -> Vec<(Option<Wt>, Optio
 }
 
 fn git(repo: &str, args: &[&str]) -> Result<String, String> {
-    let out = Command::new("git").arg("-C").arg(repo).args(args).output().map_err(|e| e.to_string())?;
+    let out = crate::host_env::command("git").arg("-C").arg(repo).args(args).output().map_err(|e| e.to_string())?;
     if !out.status.success() {
         return Err(format!("{}: {}", repo, String::from_utf8_lossy(&out.stderr).trim()));
     }
@@ -324,7 +331,7 @@ fn pulled(stdout: &str) -> bool {
 /// `LC_ALL=C`: a saída é lida (`pulled`) e o front resume o erro pelo texto em inglês. `GIT_TERMINAL_PROMPT=0`: sem
 /// terminal, um pedido de senha do https seguraria o pull para sempre.
 fn pull_one(path: &str) -> Result<bool, String> {
-    let out = Command::new("git")
+    let out = crate::host_env::command("git")
         .arg("-C")
         .arg(path)
         .args(["pull", "--ff-only"])
@@ -1109,7 +1116,7 @@ pub fn add_project(project: NewProject) -> Result<(), FormError> {
 /// Grupo de processos próprio, fora do PTY: o navegador que o `gh pr view --web` abre fica solto do app.
 fn gh(args: &[&str]) -> Result<String, String> {
     use std::os::unix::process::CommandExt;
-    let out = Command::new("gh").args(args).process_group(0).output().map_err(|e| match e.kind() {
+    let out = crate::host_env::command("gh").args(args).process_group(0).output().map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => "Instale o GitHub CLI (gh) para clonar do GitHub.".to_string(),
         _ => e.to_string(),
     })?;
@@ -1252,6 +1259,7 @@ pub async fn clone_github_repo(full_name: String, parent: String) -> Result<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
 
     #[test]
     fn set_parallel_keeps_the_rest() {

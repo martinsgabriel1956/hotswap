@@ -40,6 +40,12 @@ pub fn pty_spawn(
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
     let mut cmd = CommandBuilder::new(shell);
     cmd.env("TERM", "xterm-256color");
+    for (key, value) in crate::host_env::overrides() {
+        match value {
+            Some(value) => cmd.env(key, value),
+            None => cmd.env_remove(key),
+        }
+    }
     if let Some(dir) = cwd.or_else(|| std::env::var("HOME").ok()) {
         cmd.cwd(dir);
     }
@@ -162,7 +168,7 @@ pub fn open_url(url: String) -> Result<(), String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err("endereço inválido".into());
     }
-    let mut child = std::process::Command::new("xdg-open").arg(url).spawn().map_err(|e| e.to_string())?;
+    let mut child = crate::host_env::command("xdg-open").arg(url).spawn().map_err(|e| e.to_string())?;
     // Recolhe o xdg-open quando ele sair, senão fica um zumbi por clique.
     std::thread::spawn(move || child.wait());
     Ok(())
@@ -171,7 +177,7 @@ pub fn open_url(url: String) -> Result<(), String> {
 /// Notificação do sistema (um lado caiu com a janela escondida ou sem foco). Sem `notify-send`, não faz nada.
 #[tauri::command]
 pub fn notify(summary: String, body: String) {
-    let cmd = std::process::Command::new("notify-send").args(["--app-name=Hotswap", "--icon=hotswap", "--", &summary, &body]).spawn();
+    let cmd = crate::host_env::command("notify-send").args(["--app-name=Hotswap", "--icon=hotswap", "--", &summary, &body]).spawn();
     if let Ok(mut child) = cmd {
         std::thread::spawn(move || child.wait());
     }
