@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Publica o release v<versão do tauri.conf.json> com o .deb, o .rpm, o AppImage e o PKGBUILD do AUR (hotswap-bin, que instala o .deb).
+# Publica o release v<versão do tauri.conf.json> com o .deb, o .rpm, o AppImage, o PKGBUILD do AUR (hotswap-bin, que instala o .deb)
+# e o instalador do Windows (.exe), compilado daqui pelo cargo-xwin. Para o .exe, uma vez:
+#   sudo apt install nsis lld llvm && rustup target add x86_64-pc-windows-msvc && cargo install --locked cargo-xwin
 # Roda no CI (release.yml) e à mão, da main já no GitHub:
 #   scripts/release.sh
 # À mão, os pacotes linkam contra a glibc desta máquina; os do CI (ubuntu-22.04) instalam também nas distros mais antigas.
@@ -10,6 +12,7 @@ VERSION=$(jq -r .version src-tauri/tauri.conf.json)
 deb=src-tauri/target/release/bundle/deb/hotswap_${VERSION}_amd64.deb
 rpm=src-tauri/target/release/bundle/rpm/hotswap-${VERSION}-1.x86_64.rpm
 appimage=src-tauri/target/release/bundle/appimage/hotswap_${VERSION}_amd64.AppImage
+exe=src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/hotswap_${VERSION}_x64-setup.exe
 repo=https://github.com/martinsgabriel1956/switch-terminal
 
 git fetch -q --tags origin main
@@ -23,6 +26,7 @@ git merge-base --is-ancestor HEAD origin/main || { echo "O HEAD não está na or
 
 npm test
 npm run tauri build -- --bundles deb,rpm,appimage
+npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis
 
 out=$(mktemp -d)
 
@@ -58,11 +62,13 @@ prev=$(git describe --tags --abbrev=0 2>/dev/null || true)
   echo "chmod +x hotswap_${VERSION}_amd64.AppImage && ./hotswap_${VERSION}_amd64.AppImage  # Outras distros"
   echo '```'
   echo
+  echo "No Windows, \`hotswap_${VERSION}_x64-setup.exe\`."
+  echo
   echo "## Mudanças"
   echo
   git log --no-merges --format='- %s' ${prev:+$prev..}HEAD | grep -v '^- chore: versão' || true
 } > "$out/notes.md"
 cat "$out/notes.md"
 
-gh release create "v$VERSION" "$deb" "$rpm" "$appimage" "$out/PKGBUILD" \
+gh release create "v$VERSION" "$deb" "$rpm" "$appimage" "$exe" "$out/PKGBUILD" \
   --target "$(git rev-parse HEAD)" --title "Hotswap $VERSION" --notes-file "$out/notes.md"
