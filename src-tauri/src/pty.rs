@@ -185,10 +185,13 @@ pub fn open_url(url: String) -> Result<(), String> {
 
 /// Abre no programa padrão do sistema (navegador, editor do .json).
 pub fn open_default(target: &str) -> Result<(), String> {
-    #[cfg(unix)]
-    let opener = "xdg-open";
-    #[cfg(windows)]
-    let opener = "explorer.exe";
+    let opener = if cfg!(windows) {
+        "explorer.exe"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
     let mut child = crate::host_env::command(opener).arg(target).spawn().map_err(|e| e.to_string())?;
     // Recolhe o processo quando ele sair, senão fica um zumbi por clique.
     std::thread::spawn(move || child.wait());
@@ -229,9 +232,17 @@ fn kill_group(pg: i32) {
 }
 
 /// Nome do processo, para a troca dizer o que vai encerrar.
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 fn group_name(pg: i32) -> String {
     std::fs::read_to_string(format!("/proc/{pg}/comm")).map(|s| s.trim_end().to_owned()).unwrap_or_default()
+}
+
+/// No macOS não há /proc.
+#[cfg(target_os = "macos")]
+fn group_name(pg: i32) -> String {
+    let mut buf = [0u8; 256];
+    let n = unsafe { libc::proc_name(pg, buf.as_mut_ptr().cast(), buf.len() as u32) };
+    String::from_utf8_lossy(&buf[..n.max(0) as usize]).into_owned()
 }
 
 #[cfg(windows)]

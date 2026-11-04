@@ -144,7 +144,7 @@ fn editor_argv(cmd: &str, dir: &str) -> Option<(String, Vec<String>)> {
 }
 
 /// Editor de interface gráfica pelas categorias do .desktop; os de terminal (Vim) ficam de fora.
-#[cfg_attr(windows, allow(dead_code))]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn is_editor(categories: &str, terminal: bool) -> bool {
     !terminal && categories.split(';').any(|c| c == "TextEditor" || c == "IDE")
 }
@@ -173,7 +173,7 @@ pub fn list_editors() -> Result<Editors, String> {
     Ok(Editors { editors, chosen: cfg.editor, command })
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 fn installed_editors() -> Vec<Editor> {
     use gio::prelude::*;
     gio::AppInfo::all()
@@ -185,13 +185,13 @@ fn installed_editors() -> Vec<Editor> {
         .collect()
 }
 
-/// Sem .desktop no Windows: o "Abrir com…" fica só com o `editorCommand`.
-#[cfg(windows)]
+/// Sem .desktop no Windows e no macOS: o "Abrir com…" fica só com o `editorCommand`.
+#[cfg(not(target_os = "linux"))]
 fn installed_editors() -> Vec<Editor> {
     Vec::new()
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 fn launch_desktop(id: &str, path: &str) -> Result<(), String> {
     use gio::prelude::*;
     let app = gio::DesktopAppInfo::new(id).ok_or(format!("{id}: não está mais instalado"))?;
@@ -206,7 +206,7 @@ fn launch_desktop(id: &str, path: &str) -> Result<(), String> {
     app.launch(&[gio::File::for_path(path)], Some(&ctx)).map_err(|e| format!("{}: {e}", app.name()))
 }
 
-#[cfg(windows)]
+#[cfg(not(target_os = "linux"))]
 fn launch_desktop(id: &str, _path: &str) -> Result<(), String> {
     Err(format!("{id}: não está instalado"))
 }
