@@ -44,6 +44,12 @@ pub fn pty_spawn(
     let shell = std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".into());
     let mut cmd = CommandBuilder::new(shell);
     cmd.env("TERM", "xterm-256color");
+    for (key, value) in crate::host_env::overrides() {
+        match value {
+            Some(value) => cmd.env(key, value),
+            None => cmd.env_remove(key),
+        }
+    }
     if let Some(dir) = cwd.or_else(|| std::env::home_dir().map(|h| h.to_string_lossy().into_owned())) {
         cmd.cwd(dir);
     }
@@ -183,7 +189,7 @@ pub fn open_default(target: &str) -> Result<(), String> {
     let opener = "xdg-open";
     #[cfg(windows)]
     let opener = "explorer.exe";
-    let mut child = std::process::Command::new(opener).arg(target).spawn().map_err(|e| e.to_string())?;
+    let mut child = crate::host_env::command(opener).arg(target).spawn().map_err(|e| e.to_string())?;
     // Recolhe o processo quando ele sair, senão fica um zumbi por clique.
     std::thread::spawn(move || child.wait());
     Ok(())
@@ -192,7 +198,7 @@ pub fn open_default(target: &str) -> Result<(), String> {
 /// Notificação do sistema (um lado caiu com a janela escondida ou sem foco). Sem `notify-send`, não faz nada.
 #[tauri::command]
 pub fn notify(summary: String, body: String) {
-    let cmd = std::process::Command::new("notify-send").args(["--app-name=Hotswap", "--icon=hotswap", "--", &summary, &body]).spawn();
+    let cmd = crate::host_env::command("notify-send").args(["--app-name=Hotswap", "--icon=hotswap", "--", &summary, &body]).spawn();
     if let Ok(mut child) = cmd {
         std::thread::spawn(move || child.wait());
     }

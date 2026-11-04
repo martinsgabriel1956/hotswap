@@ -108,7 +108,7 @@ fn home() -> String {
 /// de console por cima do app.
 fn quiet(program: &str) -> Command {
     #[allow(unused_mut)]
-    let mut cmd = Command::new(program);
+    let mut cmd = crate::host_env::command(program);
     #[cfg(windows)]
     std::os::windows::process::CommandExt::creation_flags(&mut cmd, 0x0800_0000);
     cmd
@@ -195,7 +195,15 @@ fn installed_editors() -> Vec<Editor> {
 fn launch_desktop(id: &str, path: &str) -> Result<(), String> {
     use gio::prelude::*;
     let app = gio::DesktopAppInfo::new(id).ok_or(format!("{id}: não está mais instalado"))?;
-    app.launch(&[gio::File::for_path(path)], None::<&gio::AppLaunchContext>).map_err(|e| format!("{}: {e}", app.name()))
+    // ponytail: o gio não deixa escolher a pasta, então no AppImage o editor nasce dentro da imagem; trocar por spawn se incomodar.
+    let ctx = gio::AppLaunchContext::new();
+    for (key, value) in crate::host_env::overrides() {
+        match value {
+            Some(value) => ctx.setenv(key, value),
+            None => ctx.unsetenv(key),
+        }
+    }
+    app.launch(&[gio::File::for_path(path)], Some(&ctx)).map_err(|e| format!("{}: {e}", app.name()))
 }
 
 #[cfg(windows)]
@@ -230,7 +238,7 @@ pub fn open_in_editor(path: String) -> Result<bool, String> {
     #[cfg(unix)]
     let mut cmd = {
         use std::os::unix::process::CommandExt;
-        let mut cmd = Command::new(&program);
+        let mut cmd = crate::host_env::command(&program);
         cmd.process_group(0);
         cmd
     };

@@ -1,3 +1,4 @@
+mod host_env;
 mod pty;
 mod worktrees;
 
