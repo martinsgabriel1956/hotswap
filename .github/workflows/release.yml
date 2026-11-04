@@ -56,8 +56,10 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       # O instalador do Windows, compilado daqui: NSIS, o linker e o rc do LLVM, e o cargo-xwin (que baixa o SDK do Windows).
+      # O NSIS do 22.04 (3.08) não traz o RestartManager.nsh, que o instalador do Tauri inclui; a cópia veio do NSIS 3.10.
       - run: |
           sudo apt-get install -y nsis lld llvm
+          sudo cp scripts/nsis/RestartManager.nsh /usr/share/nsis/Include/Win/
           rustup target add x86_64-pc-windows-msvc
           cargo install --locked cargo-xwin
 
