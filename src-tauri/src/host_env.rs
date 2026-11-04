@@ -32,6 +32,21 @@ fn overrides_for(appdir: &str, vars: impl Iterator<Item = (OsString, OsString)>)
     .collect()
 }
 
+/// Aberto pelo Finder, o app herda o PATH mínimo do launchd, sem Homebrew nem nvm: `gh` e `npm` não seriam achados.
+/// Adota o PATH do shell do usuário; o printf vai depois de qualquer coisa que o .zshrc escreva.
+/// ponytail: um shell que trava ao iniciar sem terminal trava a abertura do app; pôr timeout se aparecer.
+#[cfg(target_os = "macos")]
+pub fn adopt_shell_path() {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let out = Command::new(shell).args(["-ilc", r#"printf '\n%s' "$PATH""#]).stdin(std::process::Stdio::null()).output();
+    if let Ok(out) = out {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        if let Some(path) = stdout.lines().last().filter(|p| !p.is_empty()) {
+            std::env::set_var("PATH", path);
+        }
+    }
+}
+
 /// `Command::new` para programas do usuário, sem o ambiente do AppImage.
 pub fn command(program: impl AsRef<OsStr>) -> Command {
     let mut cmd = Command::new(program);

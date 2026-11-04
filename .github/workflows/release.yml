@@ -1,6 +1,6 @@
 name: Release
 
-# Toda versão nova que chega na main vira um release com o .deb, o .rpm, o AppImage, o PKGBUILD do AUR e o .exe do Windows. A versão mora no tauri.conf.json (o "chore: versão X"
+# Toda versão nova que chega na main vira um release com o .deb, o .rpm, o AppImage, o PKGBUILD do AUR, o .exe do Windows e o .dmg do macOS. A versão mora no tauri.conf.json (o "chore: versão X"
 # muda ele junto com package.json e Cargo.toml); se a tag v<versão> já existe, o release já foi feito e nada roda.
 on:
   push:
@@ -70,3 +70,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/release.sh
+
+  # O .dmg só compila num Mac: entra no release que o job de cima criou. Se falhar, "Re-run failed jobs" tenta de novo
+  # sem refazer o release. Universal: um arquivo só para Apple Silicon e Intel.
+  macos:
+    needs: [check, release]
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - run: npm ci
+      - run: npm run tauri build -- --target universal-apple-darwin --bundles dmg
+
+      - name: Anexar ao release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "v$VERSION" "src-tauri/target/universal-apple-darwin/release/bundle/dmg/hotswap_${VERSION}_universal.dmg"

@@ -165,6 +165,17 @@ O mesmo app, compilado para Windows (instalador NSIS no release). Feito e verifi
 - **Sem equivalente:** o "Abrir com…" não lista editores (não há `.desktop`), só o `editorCommand`; sem notificação do sistema.
 - **Config:** `%USERPROFILE%\.config\hotswap\config.json`.
 
+## macOS
+
+O mesmo app, em `.dmg` universal (Apple Silicon e Intel) no release, compilado por um job em Mac no CI. Feito só no Linux: compila, mas não foi usado num Mac.
+
+- **Assinatura:** ad-hoc, sem conta da Apple. Baixado, o macOS diz que o app está danificado até rodar `xattr -cr /Applications/hotswap.app` (nas notas do release).
+- **PATH:** aberto pelo Finder o app só teria o PATH mínimo do launchd; ao abrir, adota o do shell do usuário (`$SHELL -ilc`).
+- **Processos:** como no Linux, com grupo em primeiro plano; o nome do processo vem do `proc_name`, porque não há `/proc`.
+- **Abrir** URL e config pelo `open`; abrir o app de novo ou clicar no Dock mostra a janela.
+- **Sem equivalente:** o "Abrir com…" não lista editores (não há `.desktop`), só o `editorCommand`; sem notificação do sistema.
+- **Config:** `~/.config/hotswap/config.json`.
+
 ## Logo
 
 `app-icon.svg` na raiz: um H numa palheta split-flap, com o corte do meio atravessando a letra; as hastes são a API e o front, e a travessa verde é o par rodando. Os ícones em `src-tauri/icons/` são gerados com `npx tauri icon app-icon.svg`.

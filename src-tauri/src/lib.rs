@@ -92,6 +92,8 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    host_env::adopt_shell_path();
     // Antes do Builder: o webview abre já lendo a pasta de dados do identifier novo.
     migrate_from_switch_terminal();
     tauri::Builder::default()
@@ -147,6 +149,11 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 app.state::<pty::Ptys>().kill_all();
+            }
+            // No macOS, abrir o app de novo (ou clicar no Dock) não cria outra instância: chega aqui.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_window(app);
             }
         });
 }

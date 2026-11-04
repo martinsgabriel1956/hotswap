@@ -5,6 +5,7 @@
 # Roda no CI (release.yml) e à mão, da main já no GitHub:
 #   scripts/release.sh
 # À mão, os pacotes linkam contra a glibc desta máquina; os do CI (ubuntu-22.04) instalam também nas distros mais antigas.
+# O .dmg do macOS não sai daqui: um job do release.yml, num Mac, anexa ele ao release depois; à mão, o release sai sem ele.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -63,6 +64,8 @@ prev=$(git describe --tags --abbrev=0 2>/dev/null || true)
   echo '```'
   echo
   echo "No Windows, \`hotswap_${VERSION}_x64-setup.exe\`."
+  echo
+  echo "No macOS, \`hotswap_${VERSION}_universal.dmg\`. O app não é assinado pela Apple: depois de arrastar para Aplicativos, rode \`xattr -cr /Applications/hotswap.app\`, senão o macOS diz que ele está danificado."
   echo
   echo "## Mudanças"
   echo
