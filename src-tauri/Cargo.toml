@@ -3,6 +3,7 @@ name = "hotswap"
 version = "0.5.1"
 description = "Troca de terminais entre worktrees"
 authors = ["Gabriel Martins"]
+license = "MIT"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
