@@ -14,7 +14,7 @@ deb=src-tauri/target/release/bundle/deb/hotswap_${VERSION}_amd64.deb
 rpm=src-tauri/target/release/bundle/rpm/hotswap-${VERSION}-1.x86_64.rpm
 appimage=src-tauri/target/release/bundle/appimage/hotswap_${VERSION}_amd64.AppImage
 exe=src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/hotswap_${VERSION}_x64-setup.exe
-repo=https://github.com/martinsgabriel1956/switch-terminal
+repo=https://github.com/martinsgabriel1956/hotswap
 
 git fetch -q --tags origin main
 if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
