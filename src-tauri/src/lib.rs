@@ -1,3 +1,17 @@
+/// Idioma das mensagens que saem daqui (erros, bandeja, diálogo de sair): o front diz qual com set_lang ao abrir.
+static EN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+fn en() -> bool {
+    EN.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// `tr!("Já existe {}.", "{} already exists.", dest.display())`: o format! do idioma atual.
+#[macro_export]
+macro_rules! tr {
+    ($pt:literal, $en:literal $(, $a:expr)* $(,)?) => {
+        if $crate::en() { format!($en $(, $a)*) } else { format!($pt $(, $a)*) }
+    };
+}
+
 mod host_env;
 mod pty;
 mod worktrees;
@@ -51,10 +65,10 @@ fn quit(app: &AppHandle) {
     show_window(app);
     let handle = app.clone();
     app.dialog()
-        .message("Há processos rodando nos terminais. Sair encerra todos eles.")
-        .title("Sair do Hotswap")
+        .message(tr!("Há processos rodando nos terminais. Sair encerra todos eles.", "Processes are running in the terminals. Quitting ends all of them."))
+        .title(tr!("Sair do Hotswap", "Quit Hotswap"))
         .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom("Sair".into(), "Cancelar".into()))
+        .buttons(MessageDialogButtons::OkCancelCustom(tr!("Sair", "Quit"), tr!("Cancelar", "Cancel")))
         .show(move |ok| {
             if ok {
                 handle.exit(0);
@@ -93,10 +107,10 @@ fn tray_items(app: &AppHandle, entries: &[TrayEntry]) -> tauri::Result<Vec<Box<d
 
 /// "Mostrar janela" e "Sair" ficam sempre; o que o front mandou vai entre eles.
 fn tray_menu(app: &AppHandle, entries: &[TrayEntry]) -> tauri::Result<Menu<Wry>> {
-    let show = MenuItem::with_id(app, "show", "Mostrar janela", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", tr!("Mostrar janela", "Show window"), true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let sep_end = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", tr!("Sair", "Quit"), true, None::<&str>)?;
     let mid = tray_items(app, entries)?;
     let mut refs: Vec<&dyn IsMenuItem<Wry>> = vec![&show, &sep];
     refs.extend(mid.iter().map(|m| m.as_ref()));
@@ -107,11 +121,16 @@ fn tray_menu(app: &AppHandle, entries: &[TrayEntry]) -> tauri::Result<Menu<Wry>>
     Menu::with_items(app, &refs)
 }
 
+#[tauri::command]
+fn set_lang(lang: String) {
+    EN.store(lang == "en", std::sync::atomic::Ordering::Relaxed);
+}
+
 /// O front remonta o menu quando muda o que ele mostra (projetos, worktree atual, quem está de pé).
 #[tauri::command]
 fn set_tray_menu(app: AppHandle, entries: Vec<TrayEntry>) -> Result<(), String> {
     let menu = tray_menu(&app, &entries).map_err(|e| e.to_string())?;
-    let tray = app.tray_by_id(TRAY_ID).ok_or("bandeja não criada")?;
+    let tray = app.tray_by_id(TRAY_ID).ok_or(tr!("bandeja não criada", "tray not created"))?;
     tray.set_menu(Some(menu)).map_err(|e| e.to_string())
 }
 
@@ -164,6 +183,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            set_lang,
             set_tray_menu,
             pty::pty_spawn,
             pty::pty_write,

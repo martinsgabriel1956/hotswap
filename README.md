@@ -10,7 +10,7 @@ If you work on several branches at once, switching usually means opening termina
 
 It pairs the API and front worktrees by branch name and keeps **one worktree running per project**. When you switch, it sends Ctrl+C to the old pair, waits until every process in the group has exited (killing them after a timeout), and only then starts the new pair. Terminal multiplexers and editor terminals don't know about the pairing or this lifecycle.
 
-> The interface is in Brazilian Portuguese.
+> The interface is in English and Brazilian Portuguese: it follows the system language, and you can change it in the settings popover.
 
 ## Features
 

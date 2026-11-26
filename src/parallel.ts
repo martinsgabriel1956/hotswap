@@ -1,3 +1,4 @@
+import { tr } from "./i18n.ts";
 /** Portas de uma worktree no modo paralelo; null: lado sem servidor ou porta desconhecida. */
 export type Ports = { api: number | null; front: number | null };
 /** `parallelEnv` de um lado: { "SERVER_PORT": "{apiPort}", "WEB_URL": "http://localhost:{frontPort}" }. */
@@ -47,10 +48,10 @@ export function envPrefix(vars: Record<string, string>, windows = false): string
 /** O que está errado no parallelEnv de um lado, ou null. */
 export function templateError(tpl: EnvTemplate): string | null {
   for (const [name, value] of Object.entries(tpl)) {
-    if (!NAME.test(name)) return `nome de variável inválido: ${name}`;
-    if (/['"]/.test(value)) return `${name} tem aspa, que o app não passa ao shell`;
+    if (!NAME.test(name)) return tr("nome de variável inválido: {0}", name);
+    if (/['"]/.test(value)) return tr("{0} tem aspa, que o app não passa ao shell", name);
     const bad = [...value.matchAll(PLACEHOLDER)].find((m) => !(m[1] in PORT_OF));
-    if (bad) return `${name}: ${bad[0]} não existe (use {apiPort} ou {frontPort})`;
+    if (bad) return tr("{0}: {1} não existe (use {apiPort} ou {frontPort})", name, bad[0]);
   }
   return null;
 }

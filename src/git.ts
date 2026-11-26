@@ -1,3 +1,4 @@
+import { tr } from "./i18n.ts";
 /** Estado do git de um lado, lido pelo `git_status` do backend. */
 export type GitState = { changed: number; untracked: number; ahead: number; behind: number };
 
@@ -6,10 +7,10 @@ const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? o
 /** "3 arquivos alterados, 2 commits à frente"; vazio quando não há o que dizer. */
 export function gitSay(s: GitState) {
   return [
-    count(s.changed, "arquivo alterado", "arquivos alterados"),
-    count(s.untracked, "não rastreado", "não rastreados"),
-    count(s.ahead, "commit à frente", "commits à frente"),
-    count(s.behind, "commit atrás", "commits atrás"),
+    count(s.changed, tr("arquivo alterado"), tr("arquivos alterados")),
+    count(s.untracked, tr("não rastreado"), tr("não rastreados")),
+    count(s.ahead, tr("commit à frente"), tr("commits à frente")),
+    count(s.behind, tr("commit atrás"), tr("commits atrás")),
   ]
     .filter(Boolean)
     .join(", ");

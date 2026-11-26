@@ -83,14 +83,14 @@ pub fn pty_spawn(
 #[tauri::command]
 pub fn pty_write(ptys: State<Ptys>, id: u32, data: String) -> Result<(), String> {
     let mut map = ptys.map.lock().unwrap();
-    let pty = map.get_mut(&id).ok_or("pty não encontrado")?;
+    let pty = map.get_mut(&id).ok_or(crate::tr!("pty não encontrado", "pty not found"))?;
     pty.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn pty_resize(ptys: State<Ptys>, id: u32, cols: u16, rows: u16) -> Result<(), String> {
     let map = ptys.map.lock().unwrap();
-    let pty = map.get(&id).ok_or("pty não encontrado")?;
+    let pty = map.get(&id).ok_or(crate::tr!("pty não encontrado", "pty not found"))?;
     pty.master.resize(size(cols, rows)).map_err(|e| e.to_string())
 }
 
@@ -178,7 +178,7 @@ pub async fn ports_open(ports: Vec<u16>) -> Vec<bool> {
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err("endereço inválido".into());
+        return Err(crate::tr!("endereço inválido", "invalid address"));
     }
     open_default(&url)
 }

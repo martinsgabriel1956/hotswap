@@ -1,3 +1,4 @@
+import { tr } from "./i18n.ts";
 /** Quanto o SUBINDO espera antes de dizer quem ficou para trás. */
 export const START_MS = 15000;
 
@@ -20,8 +21,8 @@ export function startEnd(down: number, deaf: number, elapsedMs: number): "subind
 /** "API não subiu em 15 s" (sem processo) ou "Front não respondeu na porta 3000 em 15 s" (de pé, porta fechada). Com os
  *  dois, fala do que não subiu: é ele que vira SEM API. */
 export function lateText(down: string[], deaf: { name: string; port: number }[]) {
-  if (down.length) return `${down.join(" e ")} ${down.length > 1 ? "não subiram" : "não subiu"} em 15 s`;
-  const names = deaf.map(d => d.name).join(" e ");
-  const ports = deaf.map(d => d.port).join(" e ");
-  return deaf.length > 1 ? `${names} não responderam nas portas ${ports} em 15 s` : `${names} não respondeu na porta ${ports} em 15 s`;
+  if (down.length) return tr("{0} {1} em 15 s", down.join(tr(" e ")), down.length > 1 ? tr("não subiram") : tr("não subiu"));
+  const names = deaf.map(d => d.name).join(tr(" e "));
+  const ports = deaf.map(d => d.port).join(tr(" e "));
+  return deaf.length > 1 ? tr("{0} não responderam nas portas {1} em 15 s", names, ports) : tr("{0} não respondeu na porta {1} em 15 s", names, ports);
 }
