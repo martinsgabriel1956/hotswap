@@ -1634,26 +1634,28 @@ const BUSY: LineState[] = [...LIVE, "stop", "kill"];
 const PENCIL = "M11 2.5 13.5 5 6 12.5H3.5V10ZM9.5 4 12 6.5";
 
 /** Lápis da linha: irmão do botão de trocar (botão dentro de botão é inválido). Rodando, fica aria-disabled com o motivo. */
-function editButton(project: string, wt: Worktree) {
+/** Lápis (editar) ou lixeira (remover) da linha: os dois só com a worktree parada, com o motivo quando não. */
+function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
+  const [verb, open, path] = kind === "edit" ? ["Editar", openEditDialog, PENCIL] : ["Remover", openRemoveDialog, TRASH_ICON];
   const busyNow = BUSY.includes(lineState(project, wt));
   const spoken = spokenLabel(wt.label);
   const b = el(
     "button",
     {
       type: "button",
-      className: "icon-btn edit",
+      className: `icon-btn ${kind}`,
       tabIndex: -1,
-      title: busyNow ? `${wt.label}, ${say(project, wt, lineState(project, wt))}: troque para outra worktree do projeto antes de editar` : `Editar ${wt.label}`,
-      ariaLabel: busyNow ? `Editar ${spoken}: indisponível, ${say(project, wt, lineState(project, wt))}; troque para outra worktree do projeto antes` : `Editar ${spoken}`,
+      title: busyNow ? `${wt.label}, ${say(project, wt, lineState(project, wt))}: troque para outra worktree do projeto antes de ${verb.toLowerCase()}` : `${verb} ${wt.label}`,
+      ariaLabel: busyNow ? `${verb} ${spoken}: indisponível, ${say(project, wt, lineState(project, wt))}; troque para outra worktree do projeto antes` : `${verb} ${spoken}`,
       onclick: () => {
         const fresh = findWt(project, wt.id);
-        if (fresh && !BUSY.includes(lineState(project, fresh))) openEditDialog(project, fresh);
+        if (fresh && !BUSY.includes(lineState(project, fresh))) open(project, fresh);
       },
     },
-    icon(PENCIL),
+    icon(path),
   );
   if (busyNow) b.setAttribute("aria-disabled", "true");
-  b.dataset.key = `edit:${key(project, wt.id)}`;
+  b.dataset.key = `${kind}:${key(project, wt.id)}`;
   return b;
 }
 
@@ -1776,7 +1778,7 @@ function renderBoard() {
       el("div", { className: "platform-head" }, el("h2", {}, fold), par, bulk, add),
       // Recolhido, o erro some junto com as linhas: quem recolheu já viu e não quer o vermelho o dia todo.
       open ? problem : null,
-      el("ul", { className: "lines" }, ...shownWts.map((wt) => el("li", { className: "row" }, lineButton(p.name, wt), editButton(p.name, wt)))),
+      el("ul", { className: "lines" }, ...shownWts.map((wt) => el("li", { className: "row" }, lineButton(p.name, wt), rowAction("edit", p.name, wt), rowAction("trash", p.name, wt)))),
     );
   });
   // Config quebrado com uma worktree aberta (o centro está no terminal): o painel continua com a última leitura boa e diz por que parou de atualizar.
@@ -2148,10 +2150,13 @@ tabsEl.addEventListener("keydown", (e) => {
   $<HTMLButtonElement>(`#tab-${tab}`).focus();
 });
 
-// Painel pelo teclado: setas andam pelas linhas (ou pelos lápis, na coluna deles), → e ← entre a linha e o lápis, Esc volta ao terminal.
+// Painel pelo teclado: setas andam pelas linhas (ou pelos lápis ou lixeiras, na coluna deles), → e ← entre linha, lápis
+// e lixeira, Esc volta ao terminal.
+const ROW_COLUMNS = [".line", ".edit", ".trash"];
 board.addEventListener("keydown", (e) => {
   const at = document.activeElement as HTMLElement;
-  const column = at.classList.contains("edit") ? ".edit" : ".line";
+  const col = Math.max(0, ROW_COLUMNS.findIndex((c) => at.matches(c)));
+  const column = ROW_COLUMNS[col];
   const items = [...board.querySelectorAll<HTMLElement>(column)];
   const i = items.indexOf(at);
   if (i < 0) return;
@@ -2159,8 +2164,8 @@ board.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowUp") items[Math.max(i - 1, 0)].focus();
   else if (e.key === "Home") items[0].focus();
   else if (e.key === "End") items[items.length - 1].focus();
-  else if (e.key === "ArrowRight" && column === ".line") at.parentElement!.querySelector<HTMLElement>(".edit")!.focus();
-  else if (e.key === "ArrowLeft" && column === ".edit") at.parentElement!.querySelector<HTMLElement>(".line")!.focus();
+  else if (e.key === "ArrowRight" && col < ROW_COLUMNS.length - 1) at.parentElement!.querySelector<HTMLElement>(ROW_COLUMNS[col + 1])!.focus();
+  else if (e.key === "ArrowLeft" && col > 0) at.parentElement!.querySelector<HTMLElement>(ROW_COLUMNS[col - 1])!.focus();
   else if (e.key === "Escape") {
     closeOverlay();
     render(true);
@@ -3320,9 +3325,14 @@ const removeOk = removeForm.querySelector<HTMLButtonElement>('button[value="ok"]
 const removeCancel = removeForm.querySelector<HTMLButtonElement>('button[value="cancel"]')!;
 const removeOpen = editForm.querySelector<HTMLButtonElement>("button.remove")!;
 
-// Por cima do editar (que só abre com a worktree parada): diz as pastas que somem antes de apagar.
-removeOpen.addEventListener("click", () => {
-  const { project, wt, branches } = editing!;
+/** O que o remover vai apagar: abre pela lixeira da linha ou por cima do editar. */
+let removing: { project: string; wt: Worktree; branches: Record<Tab, string> } | null = null;
+
+// Só com a worktree parada (lixeira e editar já checam): diz as pastas que somem antes de apagar.
+function openRemoveDialog(project: string, wt: Worktree) {
+  const [api, front] = wt.id.split("|");
+  const branches: Record<Tab, string> = { api, front };
+  removing = { project, wt, branches };
   const sides = TABS.filter((t) => wt[t]);
   removeForm.querySelector(".where")!.replaceChildren(el("span", { className: "project", textContent: project }), " / ", ...labelNodes(wt.label));
   removeForm.querySelector(".paths")!.replaceChildren(...sides.map((t) => el("p", { className: "preview" }, el("strong", { textContent: `${TAB_LABEL[t]}: ` }), ...pathNodes(wt[t]!.path))));
@@ -3334,13 +3344,14 @@ removeOpen.addEventListener("click", () => {
   removeDialog.showModal();
   // Destrutivo: o foco começa no Cancelar, para um Enter de reflexo não apagar nada.
   removeCancel.focus();
-});
+}
+removeOpen.addEventListener("click", () => openRemoveDialog(editing!.project, editing!.wt));
 
 removeForm.addEventListener("submit", async (e) => {
-  if ((e.submitter as HTMLButtonElement | null)?.value !== "ok" || !editing) return;
+  if ((e.submitter as HTMLButtonElement | null)?.value !== "ok" || !removing) return;
   e.preventDefault();
   if (isBusy(removeOk)) return;
-  const ed = editing;
+  const ed = removing;
   const { project, wt } = ed;
   removeError.textContent = "";
   const state = lineState(project, wt);
@@ -3388,8 +3399,14 @@ async function forgetWorktree(project: string, wt: Worktree, reread = true) {
   if (reread) await refresh();
 }
 
-// Cancelar volta ao editar, no botão que abriu; removida (o editar já fechou), o foco vai para o painel.
-removeDialog.addEventListener("close", () => (editDialog.open ? removeOpen.focus() : focusBoard()));
+// Cancelar volta ao botão que abriu (o do editar ou a lixeira da linha); removida, o foco vai para o painel.
+removeDialog.addEventListener("close", () => {
+  const trash = removing && byKey(`trash:${key(removing.project, removing.wt.id)}`);
+  removing = null;
+  if (editDialog.open) removeOpen.focus();
+  else if (trash) trash.focus();
+  else focusBoard();
+});
 
 // ---------- bandeja ----------
 
