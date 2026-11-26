@@ -991,7 +991,21 @@ body.resizing #panes {
   pointer-events: none;
 }
 
-body.sidebar-off #sidebar,
+/* Recolher/abrir desliza o painel, suave (exceção ao movimento em degraus). visibility acompanha:
+   fica visível durante a transição e some no fim, tirando o painel do Tab e do leitor de tela.
+   Só depois do primeiro quadro (.ready): o painel salvo como recolhido não desliza ao abrir o app.
+   A duração casa com SLIDE_MS no main.ts. */
+body.ready #sidebar {
+  transition-property: margin-left, transform, visibility;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+body.sidebar-off #sidebar {
+  margin-left: calc(-1 * var(--sidebar-w, 300px));
+  visibility: hidden;
+}
+
 body.sidebar-off #sidebar-handle {
   display: none;
 }
@@ -1008,6 +1022,12 @@ body.narrow #sidebar {
 
 body.narrow #sidebar-handle {
   display: none;
+}
+
+/* por cima, a largura não é a --sidebar-w: desliza pela própria largura */
+body.narrow.sidebar-off #sidebar {
+  margin-left: 0;
+  transform: translateX(-100%);
 }
 
 /* ---------- faixa de destino ---------- */
@@ -2973,6 +2993,10 @@ dialog.form fieldset:has([value="local"]:checked) .gh-row {
 
   #reload[aria-busy="true"] .icon {
     animation: none;
+  }
+
+  #sidebar {
+    transition: none;
   }
 }
 
