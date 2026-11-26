@@ -10,7 +10,7 @@ import "@xterm/xterm/css/xterm.css";
 import "@fontsource/barlow-semi-condensed/latin-500.css";
 import "@fontsource/barlow-semi-condensed/latin-600.css";
 import "@fontsource/barlow-semi-condensed/latin-700.css";
-import "./styles.css";
+import "./styles.scss";
 import { asPm, isPm, joinStart, PREFIX, rewrite, splitStart, switchPm, type Pm } from "./pm";
 import { endCut, middleCut, nameTail } from "./branch";
 import { matchAt, matchItem, projectTerms } from "./match";
@@ -1989,7 +1989,7 @@ const BRANCH_FLOOR = 160;
  *  Com 48px, a 480 ficava "INTERNO /" inteiro ao lado de "fe…leilao". */
 const BRANCH_MIN = 112;
 
-/** A faixa é CSS (#flow em styles.css): o destino tem um piso (projeto, a branch até BRANCH_FLOOR e a palheta) e, acima
+/** A faixa é CSS (#flow em styles.scss): o destino tem um piso (projeto, a branch até BRANCH_FLOOR e a palheta) e, acima
  *  dele, os acessórios vêm antes do resto da branch. O que não cabe quebra para uma segunda linha do #flow, fora da
  *  faixa, de trás para a frente: o recado (que só fica se a branch couber inteira), os outros projetos, "Parar tudo",
  *  "Parar API" e por último a porta. Antes,
