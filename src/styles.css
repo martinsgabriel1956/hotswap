@@ -1740,8 +1740,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
   stroke: none;
 }
 
-/* ⋯: superfície flutuante como a paleta, um item por linha, o atalho em meia-tinta à direita */
-#more-menu {
+/* ⋯ e o menu da linha (botão direito): superfície flutuante como a paleta, um item por linha, o atalho em meia-tinta à direita */
+:is(#more-menu, #row-menu) {
   position: fixed;
   inset: auto;
   min-width: 220px;
