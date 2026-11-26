@@ -52,6 +52,10 @@
   --side-shadow: 8px 0 24px rgb(0 0 0 / 70%);
   /* hover: meio caminho entre o trilho e a palheta, para não se confundir com a linha atual */
   --hover: color-mix(in srgb, var(--flap) 50%, var(--rail));
+  /* opacidade da janela (ajuda → Janela); abaixo de 100% o :root ganha .glass e só as superfícies da janela ficam translúcidas */
+  --glass: 100%;
+  --board-glass: color-mix(in srgb, var(--board) var(--glass), transparent);
+  --rail-glass: color-mix(in srgb, var(--rail) var(--glass), transparent);
   --ui: "Barlow Semi Condensed", system-ui, sans-serif;
   --mono: "JetBrainsMono Nerd Font", "Hack Nerd Font Mono", monospace;
   font: 500 15px/1.35 var(--ui);
@@ -597,7 +601,7 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
   color: var(--ink);
 }
 
-/* Modo paralelo ligado: a placa do botão fica (fundo flap) e as barras engrossam na cor de quem está de pé.
+/* Modo paralelo ligado: a placa do botão fica (fundo flap) e as janelas engrossam na cor de quem está de pé.
    Forma e fundo mudam junto com a cor: ligado não depende só do verde. */
 .icon-btn.parallel:is([aria-pressed="true"], .on) {
   background: var(--flap);
@@ -605,7 +609,8 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
 }
 
 .icon-btn.parallel:is([aria-pressed="true"], .on) .icon {
-  stroke-width: 3;
+  /* 3 como nas antigas barras fechava o vão entre as duas janelas */
+  stroke-width: 2.25;
 }
 
 /* desabilitado: a mesma meia opacidade dos botões de texto; em ink-3 ele ficava perto demais do ícone habilitado (ink-2) */
@@ -920,9 +925,10 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
   border-top: 0;
 }
 
-/* tema: o ícone é o do tema que o clique traz (sol à noite, lua de dia) */
-:root[data-theme="light"] #theme .to-light,
-:root:not([data-theme="light"]) #theme .to-dark {
+/* tema: o ícone é o do modo escolhido (sistema, claro, escuro); o clique passa ao próximo */
+#theme:not([data-mode="system"]) .mode-system,
+#theme:not([data-mode="light"]) .mode-light,
+#theme:not([data-mode="dark"]) .mode-dark {
   display: none;
 }
 
@@ -2117,7 +2123,7 @@ dialog.form .pick[aria-disabled="true"] {
   outline: none;
 }
 
-#help h2 {
+:is(#help, #settings) h2 {
   margin: 0 0 8px;
   color: var(--ink-2);
   font: 700 12px/1 var(--ui);
@@ -2130,12 +2136,6 @@ dialog.form .pick[aria-disabled="true"] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px 28px;
-}
-
-#help .sr-col {
-  grid-column: 1 / -1;
-  padding-top: 14px;
-  border-top: 1px solid var(--rule);
 }
 
 @media (max-width: 560px) {
@@ -2204,14 +2204,14 @@ dialog.form .pick[aria-disabled="true"] {
   color: var(--ink-2);
 }
 
-#help label.check {
+#settings label.check {
   display: flex;
   align-items: center;
   min-height: 24px;
   cursor: pointer;
 }
 
-#help input[type="checkbox"] {
+#settings input:is([type="checkbox"], [type="radio"]) {
   width: 15px;
   height: 15px;
   margin: 0 6px 0 0;
@@ -2219,14 +2219,69 @@ dialog.form .pick[aria-disabled="true"] {
   accent-color: var(--ink);
 }
 
-#help .fine {
+#settings .fine {
   margin: 6px 0 0 21px;
   color: var(--ink-2);
   font-size: 13px;
 }
 
-#help .fine.error {
+#settings .fine.error {
   color: var(--fail);
+}
+
+/* ---------- ajustes ---------- */
+
+/* sobe do botão no rodapé do painel, colado à esquerda */
+#settings {
+  position: fixed;
+  inset: auto auto 48px 8px;
+  margin: 0;
+  width: min(340px, calc(100vw - 16px));
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--rail);
+  color: var(--ink);
+  box-shadow: var(--float-shadow);
+}
+
+#settings:focus {
+  outline: none;
+}
+
+#settings section + section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+#settings .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+
+#settings .version-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+}
+
+#settings .version .fine {
+  margin-left: 0;
+}
+
+#settings .version .fine:empty {
+  display: none;
+}
+
+/* versão nova: notícia, não falha; a primeira parte do #alert é vermelha para as quedas */
+#alert > span.news:first-child {
+  color: var(--ink);
 }
 
 /* ---------- paleta ---------- */
@@ -2919,4 +2974,76 @@ dialog.form fieldset:has([value="local"]:checked) .gh-row {
   #reload[aria-busy="true"] .icon {
     animation: none;
   }
+}
+
+/* remover várias: a lista rola sozinha quando o projeto tem muitas worktrees */
+#bulk-remove-dialog .picks {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+}
+
+#bulk-remove-dialog .picks ul {
+  max-height: 40vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+}
+
+#bulk-remove-dialog .picks li .why {
+  margin-left: 6px;
+  color: var(--ink-3);
+}
+
+#bulk-remove-dialog .error p {
+  margin: 0 0 4px;
+}
+
+/* Janela translúcida: cada ponto da janela tem uma só camada com cor (o main, o painel, o fio do redimensionar),
+   senão as camadas somam e o meio fica mais opaco que o resto. Diálogos, paleta e menus continuam opacos. */
+:root.glass,
+:root.glass body {
+  background: transparent;
+}
+
+:root.glass main {
+  background: var(--board-glass);
+}
+
+:root.glass #sidebar {
+  background: var(--rail-glass);
+}
+
+/* o fio invade 3px do painel; só os 2px do lado do terminal precisam do fundo */
+:root.glass #sidebar-handle {
+  background: linear-gradient(to right, transparent 3px, var(--board-glass) 3px);
+}
+
+:root.glass :is(header, #strip, #panes),
+:root.glass .xterm .xterm-viewport {
+  background: transparent !important;
+}
+
+#settings label.range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+}
+
+#settings label.range input {
+  flex: 1;
+  max-width: 220px;
+  accent-color: var(--ink);
+}
+
+/* sem caixa à esquerda, a nota não recua os 21px de baixo do checkbox */
+#settings label.range + .fine {
+  margin-left: 0;
+}
+
+#settings label.range output {
+  min-width: 4ch;
+  color: var(--ink-2);
 }

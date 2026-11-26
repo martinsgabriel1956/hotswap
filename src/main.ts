@@ -1,4 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -18,6 +20,7 @@ import { searchKey } from "./search";
 import { restartRefusal } from "./restart";
 import { deafSides, lateText, startEnd } from "./start";
 import { pullErrorLine, pullErrorSummary } from "./pull";
+import { isNewer } from "./update";
 import { envPrefix, fill, movesOwnPort, portMismatch, propose, templateError, type Ports } from "./parallel";
 
 /** `startCommand`: o que sobe (o da branch, senão o do projeto); `projectStart`: o do projeto.
@@ -119,8 +122,7 @@ const TERM_THEME: Record<"dark" | "light", ITheme> = {
 const scheme = matchMedia("(prefers-color-scheme: light)");
 type Theme = "dark" | "light";
 const systemTheme = (): Theme => (scheme.matches ? "light" : "dark");
-// Escolha do botão de tema; null segue o sistema. Quando a escolha coincide com o sistema ela é esquecida (applyTheme):
-// o COSMIC alterna dia e noite sozinho, e o app volta a acompanhá-lo na próxima virada.
+// Escolha do botão de tema; null segue o sistema (o COSMIC alterna dia e noite sozinho, e o app acompanha).
 let themeChoice: Theme | null = load<Theme | null>("theme", null);
 const theme = (): Theme => themeChoice ?? systemTheme();
 /** Fundo, cursor, seleção e as cores de estado vêm dos tokens do CSS (o terminal fica sobre o mesmo fundo do painel); as outras cores ANSI são conteúdo. */
@@ -129,7 +131,8 @@ function termTheme(): ITheme {
   const token = (name: string) => css.getPropertyValue(name).trim();
   return {
     ...TERM_THEME[theme()],
-    background: token("--term-bg"),
+    // translúcida, quem pinta o fundo é o main (.glass no CSS): o terminal por cima fica sem cor própria
+    background: document.documentElement.classList.contains("glass") ? "#00000000" : token("--term-bg"),
     cursor: token("--ink"),
     cursorAccent: token("--term-bg"),
     selectionBackground: token("--selection"),
@@ -570,6 +573,10 @@ const starting = new Map<string, number>();
 const halting = new Map<string, { forcing: boolean; tabs: Tab[] }>();
 const halted = new Set<number>();
 let current: { project: string; wt: Worktree } | null = null;
+// Último menu mandado à bandeja (syncTray): aqui em cima porque o render pode rodar antes da seção da bandeja.
+let trayJson = "";
+// Release mais novo que o instalado (checkUpdate), ou null; aqui em cima pelo mesmo motivo.
+let update: { version: string; url: string } | null = null;
 let tab: Tab = "api";
 // Estado do git por pasta de lado (mudanças, commits à frente/atrás), relido junto com a lista, não no ciclo do pty_status.
 let gitStates = new Map<string, GitState>();
@@ -766,6 +773,8 @@ async function createPane(t: Tab, side: Side, parent: HTMLElement, project: stri
     fontSize: 14,
     lineHeight: 1.15,
     theme: termTheme(),
+    // sem isso o xterm força o fundo opaco e a janela translúcida (opacidade) não chegava ao terminal
+    allowTransparency: true,
     screenReaderMode: config.screenReader,
   });
   const fit = new FitAddon();
@@ -1152,6 +1161,7 @@ async function select(project: string, wt: Worktree) {
 /** Redesenha tudo. `focus`: devolve o foco ao terminal (ou à faixa da troca); só em ações do usuário. */
 function render(focus = false) {
   renderBoard();
+  syncTray();
   renderRunning();
 
   const ck = currentKey();
@@ -1647,7 +1657,8 @@ function editButton(project: string, wt: Worktree) {
   return b;
 }
 
-const PARALLEL_ICON = "M5.5 3v10M10.5 3v10";
+const TRASH_ICON = "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v3.5M9 7v3.5";
+const PARALLEL_ICON = "M5.5 2.5h8v7h-8ZM5.5 6.5H2.5v7H11V9.5";
 
 /** Liga ou desliga o modo paralelo do projeto (grava no config). */
 async function toggleParallel(project: string) {
@@ -1705,6 +1716,19 @@ function renderBoard() {
     );
     par.setAttribute("aria-pressed", String(p.parallel));
     par.dataset.key = `parallel:${p.name}`;
+    const bulk = el(
+      "button",
+      {
+        type: "button",
+        className: "icon-btn",
+        title: p.error ? "Corrija o erro do projeto para remover worktrees" : `Remover worktrees de ${p.name}…`,
+        ariaLabel: p.error ? `Remover worktrees de ${p.name}: indisponível, corrija o erro do projeto` : `Remover worktrees de ${p.name}`,
+        onclick: () => !p.error && openBulkRemove(p.name),
+      },
+      icon(TRASH_ICON),
+    );
+    if (p.error) bulk.setAttribute("aria-disabled", "true");
+    bulk.dataset.key = `bulk:${p.name}`;
     const problem = p.error
       ? el(
           "details",
@@ -1749,7 +1773,7 @@ function renderBoard() {
     return el(
       "section",
       { className: `platform${open ? "" : " folded"}${p.parallel ? " parallel" : ""}` },
-      el("div", { className: "platform-head" }, el("h2", {}, fold), par, add),
+      el("div", { className: "platform-head" }, el("h2", {}, fold), par, bulk, add),
       // Recolhido, o erro some junto com as linhas: quem recolheu já viu e não quer o vermelho o dia todo.
       open ? problem : null,
       el("ul", { className: "lines" }, ...shownWts.map((wt) => el("li", { className: "row" }, lineButton(p.name, wt), editButton(p.name, wt)))),
@@ -3117,6 +3141,15 @@ const portsError = $("#ports-error");
 const portInput = (t: Tab) => portsForm.elements.namedItem(t) as HTMLInputElement;
 const portBox = (t: Tab) => portsForm.querySelector<HTMLFieldSetElement>(`fieldset[data-side="${t}"]`)!;
 const portMsg = (t: Tab) => $(`#ports-${t}-error`);
+// Os valores do parallelEnv ficam ocultos até o "Revelar variáveis" (a cada abertura do diálogo).
+const revealBtn = portsForm.querySelector<HTMLButtonElement>("button.reveal")!;
+let revealVars = false;
+revealBtn.addEventListener("click", () => {
+  revealVars = !revealVars;
+  revealBtn.setAttribute("aria-pressed", String(revealVars));
+  revealBtn.textContent = revealVars ? "Ocultar variáveis" : "Revelar variáveis";
+  renderPortVars();
+});
 let portsAsk: { project: string; wt: Worktree; def: Ports; taken: Set<number>; resolve: (p: Ports | "cancel") => void } | null = null;
 
 portsForm.querySelector<HTMLButtonElement>(".open-config")!.addEventListener("click", () => invoke("open_config"));
@@ -3135,7 +3168,8 @@ function askPorts(project: string, wt: Worktree, proposal: Ports, def: Ports, ta
     }
     portsError.textContent = "";
     clearInvalid(portsForm);
-    renderPortVars();
+    if (revealVars) revealBtn.click();
+    else renderPortVars();
     portsDialog.showModal();
     // O foco no primeiro campo vazio (porta desconhecida), senão no Subir: a proposta costuma bastar.
     const empty = TABS.find((t) => !portBox(t).hidden && !portInput(t).value);
@@ -3185,7 +3219,7 @@ function renderPortVars() {
     const vars = Object.entries(fill(wt[t]!.parallelEnv, ports));
     const talks = t === "front" && wt.api && ports.api !== null && Object.values(wt.front!.parallelEnv).some((v) => v.includes("{apiPort}"));
     portBox(t).querySelector(".vars")!.replaceChildren(
-      ...(vars.length ? vars.map(([k, v]) => el("code", { textContent: `${k}=${v}` })) : [el("span", { textContent: "Nenhuma variável no parallelEnv." })]),
+      ...(vars.length ? vars.map(([k, v]) => el("code", { textContent: `${k}=${revealVars ? v : "••••••"}` })) : [el("span", { textContent: "Nenhuma variável no parallelEnv." })]),
       ...(talks ? [el("span", { className: "talks", textContent: `Front → API na ${ports.api}` })] : []),
     );
     // Ao digitar, o erro aparece sem roubar o foco; o campo só fica marcado no envio.
@@ -3339,7 +3373,7 @@ removeForm.addEventListener("submit", async (e) => {
 });
 
 /** Depois de remover: mata os terminais dela, tira do "ativa" e das recentes e relê o painel sem ela. */
-async function forgetWorktree(project: string, wt: Worktree) {
+async function forgetWorktree(project: string, wt: Worktree, reread = true) {
   const k = key(project, wt.id);
   const env = envs.get(k);
   if (env) disposeEnv(k, env);
@@ -3351,11 +3385,208 @@ async function forgetWorktree(project: string, wt: Worktree) {
   if (currentKey() === k) current = null;
   editing = null;
   editDialog.close();
-  await refresh();
+  if (reread) await refresh();
 }
 
 // Cancelar volta ao editar, no botão que abriu; removida (o editar já fechou), o foco vai para o painel.
 removeDialog.addEventListener("close", () => (editDialog.open ? removeOpen.focus() : focusBoard()));
+
+// ---------- bandeja ----------
+
+type TrayEntry = { kind: "item"; id: string; label: string; enabled: boolean } | { kind: "separator" } | { kind: "submenu"; label: string; items: TrayEntry[] };
+// No GTK um "&" sozinho vira atalho de letra e some do texto: dobrado, aparece.
+function trayText(s: string) {
+  return s.replace(/&/g, "&&");
+}
+function trayItem(id: string, label: string, enabled = true): TrayEntry {
+  return { kind: "item", id, label: trayText(label), enabled };
+}
+
+/** O menu da bandeja: trocar de worktree (um submenu por projeto), parar ou subir a atual, a paleta e nova worktree.
+ *  Só manda ao Rust quando muda (render roda a cada leitura de estado). */
+function syncTray() {
+  const entries: TrayEntry[] = [];
+  if (current) {
+    const { project, wt } = current;
+    const live = isLive(project, wt);
+    entries.push(trayItem(live ? "stop" : "start", `${live ? "Parar" : "Subir"} ${project} / ${wt.label}`, !stopping.has(project)));
+  }
+  if (update) entries.unshift(trayItem("update", `Hotswap ${update.version} disponível…`), { kind: "separator" });
+  entries.push(trayItem("palette", "Trocar de worktree… (Ctrl+Shift+K)"), trayItem("new", "Nova worktree…", config.projects.length > 0));
+  if (config.projects.length) entries.push({ kind: "separator" });
+  for (const p of config.projects) {
+    const items = p.worktrees.map((wt) => {
+      const here = key(p.name, wt.id) === currentKey();
+      // ● de pé, ○ a atual parada; o rótulo não muda de lugar entre os estados
+      const mark = isLive(p.name, wt) ? "● " : here ? "○ " : "    ";
+      return trayItem(`wt:${JSON.stringify([p.name, wt.id])}`, `${mark}${wt.label}`, !p.error);
+    });
+    entries.push({ kind: "submenu", label: trayText(`${p.name}${p.parallel ? " · paralelo" : ""}`), items: items.length ? items : [trayItem("none", "Nenhuma worktree", false)] });
+  }
+  const json = JSON.stringify(entries);
+  if (json === trayJson) return;
+  trayJson = json;
+  invoke("set_tray_menu", { entries }).catch(() => (trayJson = ""));
+}
+
+// A janela já veio para a frente (Rust); com um diálogo aberto, a ação esperaria atrás dele, então não faz nada.
+listen<string>("tray", ({ payload }) => {
+  if (document.querySelector("dialog[open]")) return;
+  if (payload === "palette") return palette.hidden && openPalette();
+  if (payload === "update") return update && openRelease();
+  if (payload === "new") return openAddDialog(current?.project);
+  if (payload === "stop" || payload === "start") return toggleRun(true, payload);
+  if (payload.startsWith("wt:")) {
+    const [project, id] = JSON.parse(payload.slice(3)) as [string, string];
+    const wt = findWt(project, id);
+    if (wt && key(project, id) !== currentKey()) select(project, wt);
+  }
+});
+
+// ---------- remover várias ----------
+
+const bulkDialog = $<HTMLDialogElement>("#bulk-remove-dialog");
+const bulkForm = bulkDialog.querySelector("form")!;
+const bulkList = bulkForm.querySelector("ul")!;
+const bulkAll = bulkForm.elements.namedItem("all") as HTMLInputElement;
+const bulkBranch = bulkForm.elements.namedItem("branch") as HTMLInputElement;
+const bulkError = $("#bulk-remove-error");
+const bulkOk = bulkForm.querySelector<HTMLButtonElement>('button[value="ok"]')!;
+const bulkCancel = bulkForm.querySelector<HTMLButtonElement>('button[value="cancel"]')!;
+let bulk: { project: string; req: number } | null = null;
+// Ids com a pasta principal do repositório (o git não remove), lidos ao abrir: a lista relida depois de uma falha os trava de novo.
+const bulkMains = new Set<string>();
+let bulkReq = 0;
+
+const bulkBoxes = () => [...bulkList.querySelectorAll<HTMLInputElement>("input[type=checkbox]")];
+const bulkPicked = () => bulkBoxes().filter((b) => b.checked && !b.disabled);
+
+function syncBulk() {
+  const open = bulkBoxes().filter((b) => !b.disabled);
+  const n = bulkPicked().length;
+  bulkAll.disabled = !open.length;
+  bulkAll.checked = !!open.length && n === open.length;
+  bulkAll.indeterminate = n > 0 && n < open.length;
+  if (!isBusy(bulkOk)) bulkOk.textContent = n ? `Remover ${n}` : "Remover";
+  bulkOk.disabled = !n;
+}
+
+/** Uma linha por worktree; as que não podem sair (de pé, pasta principal) vêm desmarcadas e travadas, com o motivo. */
+const MAIN_WHY = "· pasta principal do repositório: o git não remove";
+
+function bulkRow(project: string, wt: Worktree) {
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.value = wt.id;
+  const why = document.createElement("span");
+  why.className = "why";
+  const state = lineState(project, wt);
+  if (BUSY.includes(state)) {
+    box.disabled = true;
+    why.textContent = `· ${say(project, wt, state)}: troque antes`;
+  } else if (bulkMains.has(wt.id)) {
+    box.disabled = true;
+    why.textContent = MAIN_WHY;
+  }
+  return el("li", {}, el("label", { className: "check" }, box, " ", el("span", {}, ...labelNodes(wt.label)), why));
+}
+
+function openBulkRemove(project: string) {
+  const proj = config.projects.find((p) => p.name === project);
+  if (!proj) return;
+  if (!proj.worktrees.length) return headerNote(false, project, "Nenhuma worktree para remover");
+  const req = ++bulkReq;
+  bulk = { project, req };
+  bulkMains.clear();
+  bulkForm.querySelector(".where")!.replaceChildren(el("span", { className: "project", textContent: project }));
+  bulkList.replaceChildren(...proj.worktrees.map((wt) => bulkRow(project, wt)));
+  bulkBranch.checked = false;
+  bulkError.replaceChildren();
+  clearBusy(bulkOk, "Remover");
+  syncBulk();
+  bulkDialog.showModal();
+  // Destrutivo: o foco começa no Cancelar, como no Remover.
+  bulkCancel.focus();
+  // A pasta principal o git não remove: pergunta ao git e trava a linha antes de alguém marcar.
+  for (const wt of proj.worktrees)
+    Promise.all(
+      TABS.filter((t) => wt[t]).map((t) =>
+        invoke<SideInfo>("worktree_info", { path: wt[t]!.path, branch: wt.id.split("|")[t === "api" ? 0 : 1] }).then(
+          (i) => i.main,
+          () => false,
+        ),
+      ),
+    ).then((mains) => {
+      if (bulk?.req !== req || !mains.some(Boolean)) return;
+      bulkMains.add(wt.id);
+      const box = bulkBoxes().find((b) => b.value === wt.id);
+      if (!box || box.disabled) return;
+      box.checked = false;
+      box.disabled = true;
+      box.closest("li")!.querySelector(".why")!.textContent = MAIN_WHY;
+      syncBulk();
+    });
+}
+
+bulkList.addEventListener("change", syncBulk);
+bulkAll.addEventListener("change", () => {
+  for (const b of bulkBoxes()) if (!b.disabled) b.checked = bulkAll.checked;
+  syncBulk();
+});
+
+// Uma de cada vez (o git não gosta de dois "worktree remove" no mesmo repositório ao mesmo tempo); uma que falha não para as outras.
+bulkForm.addEventListener("submit", async (e) => {
+  if ((e.submitter as HTMLButtonElement | null)?.value !== "ok" || !bulk) return;
+  e.preventDefault();
+  if (isBusy(bulkOk)) return;
+  const { project } = bulk;
+  const picked = bulkPicked().map((b) => b.value);
+  if (!picked.length) return;
+  bulkError.replaceChildren();
+  setBusy(bulkOk, "Removendo…");
+  const removed: string[] = [];
+  const failed: string[] = [];
+  const notes: string[] = [];
+  for (const id of picked) {
+    const wt = findWt(project, id);
+    if (!wt) continue;
+    const state = lineState(project, wt);
+    if (BUSY.includes(state)) {
+      failed.push(`${wt.label}: ${say(project, wt, state)}; troque para outra worktree antes.`);
+      continue;
+    }
+    const [api, front] = id.split("|");
+    const side = (t: Tab) => (wt[t] ? { path: wt[t]!.path, branch: t === "api" ? api : front } : null);
+    try {
+      notes.push(...(await invoke<string[]>("remove_worktree", { req: { project, api: side("api"), front: side("front"), deleteBranch: bulkBranch.checked } })));
+      removed.push(wt.label);
+      await forgetWorktree(project, wt, false);
+    } catch (err) {
+      const fe = asFormError(err);
+      failed.push(`${wt.label}: ${fe.side ? `${TAB_LABEL[fe.side]}: ` : ""}${fe.message}`);
+      // Um lado já saiu: a worktree mudou (virou solo), e o painel precisa esquecer a antiga.
+      if (fe.created.length) await forgetWorktree(project, wt, false);
+    }
+  }
+  clearBusy(bulkOk, "Remover");
+  await refresh();
+  render();
+  if (removed.length) headerNote(false, project, [`Removidas: ${removed.join(", ")}`, ...notes].join(" · "));
+  if (!failed.length) return bulkDialog.close();
+  // Fica aberto com o que falhou; a lista é relida sem as que saíram.
+  if (bulk?.project === project) {
+    const proj = config.projects.find((p) => p.name === project);
+    bulkList.replaceChildren(...(proj?.worktrees ?? []).map((wt) => bulkRow(project, wt)));
+    syncBulk();
+  }
+  bulkError.replaceChildren(el("p", { textContent: `${failed.length === 1 ? "Uma não saiu" : `${failed.length} não saíram`}:` }), ...failed.map((f) => el("p", { textContent: f })));
+  bulkCancel.focus();
+});
+
+bulkDialog.addEventListener("close", () => {
+  bulk = null;
+  focusBoard();
+});
 
 // ---------- novo projeto ----------
 
@@ -3848,7 +4079,6 @@ let helpFromBtn = false;
 helpEl.addEventListener("toggle", (e) => {
   if ((e as ToggleEvent).newState === "open") {
     helpFromBtn = document.activeElement === helpBtn;
-    srToggle.checked = config.screenReader;
     helpEl.focus();
     return;
   }
@@ -3856,6 +4086,20 @@ helpEl.addEventListener("toggle", (e) => {
   const at = document.activeElement;
   if (helpFromBtn && (at === document.body || at === helpBtn || helpEl.contains(at))) helpBtn.focus();
   else render(true);
+});
+
+// Ajustes (botão no rodapé do painel): tema, leitor de tela e opacidade. Como a ajuda, recebe o foco ao abrir e o devolve
+// ao botão ao fechar, a não ser que um clique fora já o tenha levado para outro lugar.
+const settingsEl = $("#settings");
+const settingsBtn = $("#settings-btn");
+settingsEl.addEventListener("toggle", (e) => {
+  if ((e as ToggleEvent).newState === "open") {
+    srToggle.checked = config.screenReader;
+    settingsEl.focus();
+    return;
+  }
+  const at = document.activeElement;
+  if (at === document.body || settingsEl.contains(at)) settingsBtn.focus();
 });
 
 // Modo leitor de tela do xterm: grava no config e relê, que aplica nos terminais abertos.
@@ -3881,23 +4125,113 @@ window.addEventListener("focus", () => refresh());
 
 const themeBtn = $<HTMLButtonElement>("#theme");
 
+const THEME_NAME = { system: "do sistema", light: "claro", dark: "escuro" } as const;
+// O clique anda em ciclo: sistema → claro → escuro → sistema.
+const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
+
+const themeRadios = [...document.querySelectorAll<HTMLInputElement>('#settings input[name="theme"]')];
+
 function applyTheme() {
-  if (themeChoice === systemTheme()) themeChoice = null;
   save("theme", themeChoice);
   const now = theme();
+  const mode = themeChoice ?? "system";
   document.documentElement.dataset.theme = now;
-  const next = now === "light" ? "escuro" : "claro";
-  themeBtn.setAttribute("aria-label", `Mudar para o tema ${next}`);
-  themeBtn.title = `Tema ${now === "light" ? "claro" : "escuro"}${themeChoice ? "" : " (do sistema)"} · clique para o ${next}`;
+  themeBtn.dataset.mode = mode;
+  for (const r of themeRadios) r.checked = r.value === mode;
+  const next = THEME_NAME[NEXT_THEME[mode]];
+  themeBtn.setAttribute("aria-label", `Tema ${THEME_NAME[mode]}; mudar para o ${next}`);
+  themeBtn.title = `Tema ${THEME_NAME[mode]}${themeChoice ? "" : ` (agora ${THEME_NAME[now]})`} · clique para o ${next}`;
   for (const env of envs.values()) for (const pane of Object.values(env.panes)) pane.term.options.theme = termTheme();
 }
 
+for (const r of themeRadios)
+  r.addEventListener("change", () => {
+    themeChoice = r.value === "system" ? null : (r.value as Theme);
+    applyTheme();
+  });
+
 themeBtn.addEventListener("click", () => {
-  themeChoice = theme() === "light" ? "dark" : "light";
+  const next = NEXT_THEME[themeChoice ?? "system"];
+  themeChoice = next === "system" ? null : next;
   applyTheme();
 });
 scheme.addEventListener("change", applyTheme);
 applyTheme();
+
+// ---------- versão nova ----------
+
+const LATEST_API = "https://api.github.com/repos/martinsgabriel1956/hotswap/releases/latest";
+const CHECK_MS = 6 * 60 * 60 * 1000;
+const versionNow = $("#version-now");
+const versionSay = $("#version-say");
+const checkBtn = $<HTMLButtonElement>("#check-update");
+let appVersion = "";
+
+const openRelease = () => invoke("open_url", { url: update!.url });
+// No cabeçalho, com o contorno das ações do recado (note-act); nos Ajustes, como os outros botões de lá.
+const releaseLink = (className = "note-act") => el("button", { type: "button", className, textContent: "Ver o release", onclick: openRelease });
+
+/** Ajustes → Versão: a instalada e, se houver, a nova com o link. `say`: o resultado de um "Verificar agora". */
+function renderVersion(say?: string) {
+  versionNow.textContent = appVersion ? `Hotswap ${appVersion}` : "";
+  if (update) versionSay.replaceChildren(`Hotswap ${update.version} disponível `, releaseLink("btn small"));
+  else versionSay.textContent = say ?? "";
+}
+
+/** Pergunta ao GitHub pelo último release. Sem rede ou com o GitHub fora, fica calado (só o "Verificar agora" diz).
+ *  O aviso no cabeçalho aparece uma vez por versão; os Ajustes e a bandeja seguem mostrando até atualizar. */
+async function checkUpdate(manual = false) {
+  if (!appVersion) return;
+  if (manual) setBusy(checkBtn, "Verificando…");
+  try {
+    const res = await fetch(LATEST_API, { headers: { Accept: "application/vnd.github+json" } });
+    if (!res.ok) throw new Error(`o GitHub respondeu ${res.status}`);
+    const rel = (await res.json()) as { tag_name: string; html_url: string };
+    const version = rel.tag_name.replace(/^v/, "");
+    update = isNewer(version, appVersion) ? { version, url: rel.html_url } : null;
+    if (update && load("updateNoticed", "") !== version) {
+      save("updateNoticed", version);
+      headerNote(true, null, el("span", { className: "news", textContent: `Hotswap ${version} disponível` }), releaseLink());
+    }
+    renderVersion(manual ? "Esta é a versão mais recente." : undefined);
+  } catch (e) {
+    if (manual) renderVersion(`Não consegui verificar: ${e instanceof Error ? e.message : e}`);
+  } finally {
+    if (manual) clearBusy(checkBtn, "Verificar agora");
+    syncTray();
+  }
+}
+
+checkBtn.addEventListener("click", () => isBusy(checkBtn) || checkUpdate(true));
+getVersion().then((v) => {
+  appVersion = v;
+  renderVersion();
+  checkUpdate();
+  setInterval(checkUpdate, CHECK_MS);
+});
+
+// ---------- opacidade ----------
+
+const opacityInput = $<HTMLInputElement>("#opacity");
+const opacityOut = $("#opacity-out");
+
+/** 100 é opaca (sem .glass, como sempre foi); abaixo disso o CSS deixa só as superfícies da janela translúcidas. */
+function applyOpacity(pct: number) {
+  const glass = pct < 100;
+  const root = document.documentElement;
+  root.classList.toggle("glass", glass);
+  root.style.setProperty("--glass", `${pct}%`);
+  opacityInput.value = String(pct);
+  opacityOut.textContent = `${pct}%`;
+  for (const env of envs.values()) for (const pane of Object.values(env.panes)) pane.term.options.theme = termTheme();
+}
+
+opacityInput.addEventListener("input", () => {
+  const pct = Number(opacityInput.value);
+  applyOpacity(pct);
+  save("opacity", pct);
+});
+applyOpacity(Math.min(100, Math.max(40, Number(load("opacity", 100)) || 100)));
 
 // Só o terminal visível, uma vez por quadro: os ocultos se ajustam ao aparecer (render), e arrastando a barra
 // o ajuste espera soltar (o lostpointercapture redesenha). Antes, cada quadro do arraste mandava pty_resize a todos.

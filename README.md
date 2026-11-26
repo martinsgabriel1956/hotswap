@@ -18,10 +18,12 @@ It pairs the API and front worktrees by branch name and keeps **one worktree run
 - **Real terminals.** Each side gets a real PTY (xterm.js) running your own shell, with clickable links and search.
 - **Safe switching.** You can see each worktree's state at a glance (running, starting, stopping, crashed), with "Force now" and "Go back" while the old pair stops.
 - **Parallel mode**, per project. It runs several worktrees side by side, gives each one its own ports through environment variables, and points each front end at its own API.
-- **Worktree management.** Create worktrees (also from an open PR), rename, move, remove and `git pull` them from the app.
+- **Worktree management.** Create worktrees (also from an open PR), rename, move, remove (several at once) and `git pull` them from the app.
 - **Projects from the UI.** Point to local folders, or clone from GitHub with `gh` into a bare-repo layout.
 - **Keyboard first.** A command palette (`Ctrl+Shift+K`) and a shortcut for every action.
-- **Lives in the tray.** Closing the window keeps the dev servers running.
+- **Lives in the tray.** Closing the window keeps the dev servers running, and the tray menu switches worktrees, stops or starts the current one and opens the palette.
+- **Tells you about new versions.** It checks GitHub for a newer release and links to it; installing stays manual.
+- **Looks how you like.** System, light or dark theme, and a window opacity slider, in the settings popover at the bottom of the sidebar.
 
 ## Installation
 
