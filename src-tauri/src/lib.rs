@@ -1,14 +1,11 @@
 /// Idioma das mensagens que saem daqui (erros, bandeja, diálogo de sair): o front diz qual com set_lang ao abrir.
 static EN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-fn en() -> bool {
-    EN.load(std::sync::atomic::Ordering::Relaxed)
-}
 
 /// `tr!("Já existe {}.", "{} already exists.", dest.display())`: o format! do idioma atual.
 #[macro_export]
 macro_rules! tr {
     ($pt:literal, $en:literal $(, $a:expr)* $(,)?) => {
-        if $crate::en() { format!($en $(, $a)*) } else { format!($pt $(, $a)*) }
+        if $crate::EN.load(std::sync::atomic::Ordering::Relaxed) { format!($en $(, $a)*) } else { format!($pt $(, $a)*) }
     };
 }
 
@@ -46,16 +43,6 @@ fn confirm_end(app: &AppHandle, message: String, title: String, button: String, 
                 then(&handle);
             }
         });
-}
-
-fn quit(app: &AppHandle) {
-    confirm_end(
-        app,
-        tr!("Há processos rodando nos terminais. Sair encerra todos eles.", "Processes are running in the terminals. Quitting ends all of them."),
-        tr!("Sair do Hotswap", "Quit Hotswap"),
-        tr!("Sair", "Quit"),
-        |app| app.exit(0),
-    );
 }
 
 /// Reinicia o app (versão instalada pelo update, idioma novo); os PTYs morrem antes, como ao sair.
@@ -160,7 +147,13 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => show_window(app),
-            "quit" => quit(app),
+            "quit" => confirm_end(
+                app,
+                tr!("Há processos rodando nos terminais. Sair encerra todos eles.", "Processes are running in the terminals. Quitting ends all of them."),
+                tr!("Sair do Hotswap", "Quit Hotswap"),
+                tr!("Sair", "Quit"),
+                |app| app.exit(0),
+            ),
             // Toda ação do front traz a janela: a troca pode pedir portas, e o resultado aparece nela.
             id => {
                 if let Some(action) = id.strip_prefix(UI_ID) {

@@ -554,11 +554,6 @@ kbd {
   --state-bot: var(--body-fail-bot);
 }
 
-/* ENCERRA é prévia: só o contorno, na cor de quem está em movimento, nunca a tinta do corpo */
-.flap.preview {
-  color: var(--wait);
-}
-
 /* "SEM FRONT" e "API PARADA" passam dos 7 caracteres: só estas palhetas alargam, e a falha se destaca na coluna.
    Parado à mão ("held") tem a palheta neutra de INATIVA, nos dois temas: foi pedido, não caiu. */
 .flap:is([data-state="part"], [data-state="held"]) {
@@ -610,6 +605,7 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
 /* ENCERRA é prévia, não estado: a forma da palheta (metades e entalhes) fica para o que é verdade agora.
    Só o contorno, na cor de quem está em movimento. */
 .flap.preview {
+  color: var(--wait);
   background: var(--ends-bg);
   box-shadow: inset 0 0 0 var(--ends-line) currentColor;
 }
@@ -955,10 +951,6 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
 
 /* Truncagem em etapas (fitBranches); o title tem o nome inteiro. Primeiro o meio do nome ("calculo-de-comis…agrupados"):
    o tipo e o fim ficam. Se o começo ficar com menos de 3em, o prefixo sai inteiro. O ellipsis do CSS é só a rede. */
-.line .branch .prefix {
-  flex-shrink: 0;
-}
-
 .line .branch > .rest,
 #destination .where > .project,
 #destination .where > .branch-name,
@@ -981,6 +973,7 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
 }
 
 .line .branch .prefix {
+  flex-shrink: 0;
   color: var(--ink-2);
 }
 

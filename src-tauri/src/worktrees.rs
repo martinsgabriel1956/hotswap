@@ -129,10 +129,7 @@ pub fn config_path() -> String {
 #[tauri::command]
 pub fn open_config() -> Result<(), String> {
     // O explorer não entende "/" num caminho.
-    #[cfg(windows)]
-    return crate::pty::open_default(&config_path().replace('/', "\\"));
-    #[cfg(unix)]
-    crate::pty::open_default(&config_path())
+    crate::pty::open_default(&config_path().replace('/', std::path::MAIN_SEPARATOR_STR))
 }
 
 /// "code -n" + pasta → ("code", ["-n", pasta]). Vazio = sem editor.
@@ -236,20 +233,15 @@ pub fn open_in_editor(path: String) -> Result<bool, String> {
     }
     let Some((program, args)) = editor_argv(cfg.editor_command.as_deref().unwrap_or(""), &path) else { return Ok(false) };
     #[cfg(unix)]
-    let mut cmd = {
-        use std::os::unix::process::CommandExt;
-        let mut cmd = crate::host_env::command(&program);
-        cmd.process_group(0);
-        cmd
-    };
+    let mut cmd = crate::host_env::command(&program);
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
     // Pelo cmd: o `code` do VS Code é um `code.cmd`, que o Command sozinho não acha.
     // ponytail: editor que não existe só falha dentro do cmd, sem o "não encontrado".
     #[cfg(windows)]
-    let mut cmd = {
-        let mut cmd = quiet("cmd");
-        cmd.args(["/c", &program]);
-        cmd
-    };
+    let mut cmd = quiet("cmd");
+    #[cfg(windows)]
+    cmd.args(["/c", &program]);
     let mut child = cmd.args(args).spawn().map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => crate::tr!("{program}: não encontrado", "{program}: not found"),
         _ => format!("{program}: {e}"),
@@ -1046,14 +1038,11 @@ fn side_json(key: &'static str, s: &NewSide) -> Result<serde_json::Value, FormEr
 
 /// Acrescenta o projeto ao config sem mexer no resto (ordem e campos que o usuário editou à mão).
 fn add_project_to(path: &str, project: &NewProject) -> Result<(), FormError> {
-    fn general(m: impl Into<String>) -> FormError {
-        FormError::general(m)
-    }
     let name = project.name.trim();
     if name.is_empty() {
-        return Err(general(crate::tr!("Dê um nome ao projeto.", "Give the project a name.")));
+        return Err(FormError::general(crate::tr!("Dê um nome ao projeto.", "Give the project a name.")));
     }
-    let mut cfg = read_config_json(path).map_err(general)?;
+    let mut cfg = read_config_json(path).map_err(FormError::general)?;
     let entry = serde_json::json!({
         "name": name,
         "api": side_json("api", &project.api)?,
@@ -1061,16 +1050,16 @@ fn add_project_to(path: &str, project: &NewProject) -> Result<(), FormError> {
     });
     let projects = cfg
         .as_object_mut()
-        .ok_or(general(format!("{path}: a raiz precisa ser um objeto.")))?
+        .ok_or(FormError::general(format!("{path}: a raiz precisa ser um objeto.")))?
         .entry("projects")
         .or_insert_with(|| serde_json::json!([]))
         .as_array_mut()
-        .ok_or(general(format!("{path}: \"projects\" precisa ser uma lista.")))?;
+        .ok_or(FormError::general(format!("{path}: \"projects\" precisa ser uma lista.")))?;
     if projects.iter().any(|p| p["name"] == name) {
-        return Err(general(crate::tr!("Já existe um projeto chamado \"{name}\".", "A project named \"{name}\" already exists.")));
+        return Err(FormError::general(crate::tr!("Já existe um projeto chamado \"{name}\".", "A project named \"{name}\" already exists.")));
     }
     projects.push(entry);
-    write_config_json(path, &cfg).map_err(general)
+    write_config_json(path, &cfg).map_err(FormError::general)
 }
 
 /// O config como JSON solto, para mudar um campo sem mexer no resto (ordem e campos que o usuário editou à mão).
@@ -1218,11 +1207,6 @@ fn side_prs(side: &SideCfg) -> Result<serde_json::Value, String> {
     serde_json::from_str(&out).map_err(|e| e.to_string())
 }
 
-/// `gh pr view <branch> --web --repo HOST/OWNER/REPO`: o repo vem do origin, como no "Da PR".
-fn pr_view_args<'a>(repo: &'a str, branch: &'a str) -> [&'a str; 6] {
-    ["pr", "view", branch, "--web", "--repo", repo]
-}
-
 /// O gh diz `No pull requests found for branch "feat/x"` quando a branch não tem PR.
 fn no_pr(err: &str) -> bool {
     err.to_lowercase().contains("no pull requests found")
@@ -1234,7 +1218,7 @@ fn no_pr(err: &str) -> bool {
 pub async fn open_pr(path: String, branch: String) -> Result<bool, String> {
     let url = git(&path, &["remote", "get-url", "origin"])?;
     let repo = gh_repo_of(&url).ok_or(crate::tr!("o origin não é um repositório do GitHub: {url}", "origin isn't a GitHub repository: {url}"))?;
-    match gh(&pr_view_args(&repo, &branch)) {
+    match gh(&["pr", "view", &branch, "--web", "--repo", &repo]) {
         Ok(_) => Ok(true),
         Err(e) if no_pr(&e) => Ok(false),
         Err(e) => Err(e),
@@ -1657,7 +1641,6 @@ mod tests {
         }
         assert_eq!(gh_repo_of("/tmp/origem"), None, "remoto local");
         // "Ver PR": o repo do origin vai no --repo; origin local nem chega no gh.
-        assert_eq!(pr_view_args("github.com/dono/repo", "feat/x"), ["pr", "view", "feat/x", "--web", "--repo", "github.com/dono/repo"]);
         assert!(no_pr("No pull requests found for branch \"feat/x\""));
         assert!(!no_pr("To get started with GitHub CLI, please run:  gh auth login"));
         let err = tauri::async_runtime::block_on(open_pr(tmp.join("dest/main").to_str().unwrap().into(), "main".into())).unwrap_err();

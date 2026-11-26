@@ -1282,13 +1282,14 @@ function howItWorks() {
 function renderEmpty() {
   const missing = configError?.includes(tr("Não consegui ler"));
   const hadFocus = document.activeElement === document.body || emptyEl.contains(document.activeElement);
+  // Sem config, config quebrado e sem projeto começam igual: o texto, como funciona (menos no quebrado) e Criar projeto.
+  const aim = tr("Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel.");
+  const start = (text: string, how: boolean) => [el("p", { textContent: text }), ...(how ? [howItWorks()] : []), el("p", {}, el("button", { type: "button", className: "btn primary", textContent: tr("Criar projeto"), onclick: () => openProjectDialog() }))];
   emptyEl.replaceChildren(
     ...(configError
       ? [
           el("h2", { textContent: missing ? tr("Nenhum projeto configurado") : tr("O config tem um problema") }),
-          el("p", { textContent: missing ? tr("Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel.") : configError }),
-          ...(missing ? [howItWorks()] : []),
-          el("p", {}, el("button", { type: "button", className: "btn primary", textContent: tr("Criar projeto"), onclick: () => openProjectDialog() })),
+          ...start(missing ? aim : configError, !!missing),
           el("p", { textContent: tr("Ou edite {0} à mão; o painel relê quando você volta para a janela:", CONFIG_PATH) }),
           el("pre", { textContent: CONFIG_EXAMPLE }),
         ]
@@ -1297,12 +1298,7 @@ function renderEmpty() {
             el("h2", { textContent: tr("Nenhuma worktree aberta") }),
             el("p", {}, tr("Escolha uma no painel ou use "), el("kbd", { textContent: "Ctrl" }), el("kbd", { textContent: "Shift" }), el("kbd", { textContent: "K" }), "."),
           ]
-        : [
-            el("h2", { textContent: tr("Nenhum projeto ainda") }),
-            el("p", { textContent: tr("Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel.") }),
-            howItWorks(),
-            el("p", {}, el("button", { type: "button", className: "btn primary", textContent: tr("Criar projeto"), onclick: () => openProjectDialog() })),
-          ]),
+        : [el("h2", { textContent: tr("Nenhum projeto ainda") }), ...start(aim, true)]),
   );
   if (hadFocus) emptyEl.querySelector<HTMLButtonElement>(".btn.primary")?.focus();
 }
@@ -1442,6 +1438,7 @@ function fontWidth(e: HTMLElement) {
   const font = `${css.fontWeight} ${css.fontSize} ${css.fontFamily}`;
   return (t: string) => {
     measure.font = font;
+    // ponytail: o canvas ignora tabular-nums; 2px de folga, e o text-overflow do CSS segura o resto
     return measure.measureText(t).width + 2;
   };
 }
@@ -1706,15 +1703,20 @@ const openProblems = new Set<string>();
 // Último painel montado: igual, não troca os nós (um clique entre mousedown e mouseup cairia num nó descartado).
 let boardHtml: string[] = [];
 
-/** Erro recolhível do painel (de um projeto ou do config): aberto ou fechado sobrevive ao render, por `id` em openProblems. */
+/** Erro recolhível do painel (de um projeto ou do config): aberto ou fechado sobrevive ao render, por `id` em openProblems,
+ *  e o foco também (data-key no resumo e no botão). */
 function problemBox(id: string, summary: string, code: string, ...extra: Node[]) {
+  const sum = el("summary", { textContent: summary });
+  const open = el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") });
+  sum.dataset.key = `problem:${id}:summary`;
+  open.dataset.key = `problem:${id}:open`;
   return el(
     "details",
     { className: "problem", open: openProblems.has(id), ontoggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? openProblems.add(id) : openProblems.delete(id)) },
-    el("summary", { textContent: summary }),
+    sum,
     el("code", { textContent: code }),
     ...extra,
-    el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") }),
+    open,
   );
 }
 
@@ -1752,7 +1754,6 @@ function renderBoard() {
     const problem = p.error
       ? problemBox(p.name, projectErrorSummary(p.error), p.error, el("p", {}, tr("Ajuste o caminho em "), el("code", { textContent: CONFIG_PATH }), tr(" e volte para a janela: o painel relê sozinho.")))
       : null;
-    if (problem) keyFocusables(problem, `problem:${p.name}`);
     // Recolhido, o projeto ainda mostra a worktree ativa: o que está de pé não some da tela.
     const open = !collapsed.has(p.name);
     // Em paralelo, recolhido mostra todas as de pé.
@@ -1793,7 +1794,6 @@ function renderBoard() {
     sections.unshift(
       el("section", { className: "platform" }, problemBox(CONFIG_PATH, tr("O config tem um problema; o painel mostra a última leitura boa."), configError)),
     );
-  if (configError && config.projects.length && current) keyFocusables(sections[0], "problem:config");
   // Sem projeto: só a placa em branco. A explicação e a ação ficam no centro da janela; uma linha
   // "Nenhuma worktree ainda" aqui repetia o que o centro já diz.
   if (!config.projects.length)
@@ -1824,12 +1824,6 @@ function renderBoard() {
  *  e o seletor nunca casava (o foco não voltava à linha depois de o painel ser recriado). */
 const byKey = (k: string) => [...board.querySelectorAll<HTMLElement>("[data-key]")].find((e) => e.dataset.key === k);
 
-/** Resumo e botão de um erro ganham chave: com o foco neles, o painel recriado devolve o foco ao mesmo lugar. */
-function keyFocusables(root: HTMLElement, prefix: string) {
-  root.querySelector<HTMLElement>("summary")!.dataset.key = `${prefix}:summary`;
-  root.querySelector<HTMLElement>("button")!.dataset.key = `${prefix}:open`;
-}
-
 // Mede o texto truncado sem reflow (fitBranches).
 const measure = document.createElement("canvas").getContext("2d")!;
 
@@ -1843,25 +1837,18 @@ function fitBranches() {
     b.classList.remove("tight");
     rests[i].textContent = rests[i].dataset.full!;
   });
-  const sizes = rests.map((r) => {
-    const css = getComputedStyle(r);
-    return {
-      // com subpixel (textWidth): os inteiros deixavam a reticência do CSS cortar o fim
-      avail: r.getBoundingClientRect().width,
-      need: textWidth(r),
-      prefix: (r.previousElementSibling as HTMLElement).offsetWidth,
-      // o shorthand css.font volta vazio com font-variant-numeric definido
-      font: `${css.fontWeight} ${css.fontSize} ${css.fontFamily}`,
-      em: parseFloat(css.fontSize),
-    };
-  });
+  const sizes = rests.map((r) => ({
+    // com subpixel (textWidth): os inteiros deixavam a reticência do CSS cortar o fim
+    avail: r.getBoundingClientRect().width,
+    need: textWidth(r),
+    prefix: (r.previousElementSibling as HTMLElement).offsetWidth,
+    w: fontWidth(r),
+    em: parseFloat(getComputedStyle(r).fontSize),
+  }));
   branches.forEach((b, i) => {
-    const { need, prefix, font, em } = sizes[i];
+    const { need, prefix, w, em } = sizes[i];
     let { avail } = sizes[i];
     if (need <= avail) return;
-    measure.font = font;
-    // ponytail: o canvas ignora tabular-nums; 2px de folga, e o text-overflow do CSS segura o resto
-    const w = (s: string) => measure.measureText(s).width + 2;
     const full = rests[i].dataset.full!;
     // O começo do nome ficaria com menos de 3em ao lado do prefixo: o prefixo sai.
     if (prefix && avail - w(`…${nameTail(full)}`) < 3 * em) {
@@ -2545,12 +2532,8 @@ function worktreeErrorSummary(message: string): { field: "dir" | "base" | "branc
 }
 
 /** Botão ocupado: aria-disabled (o foco continua nele; disabled jogaria o foco no body, atrás do diálogo) e o texto do que está fazendo. */
-function setBusy(button: HTMLButtonElement, label: string) {
-  button.setAttribute("aria-disabled", "true");
-  button.textContent = label;
-}
-function clearBusy(button: HTMLButtonElement, label: string) {
-  button.removeAttribute("aria-disabled");
+function setBusy(button: HTMLButtonElement, label: string, busy = true) {
+  button.ariaDisabled = busy ? "true" : null;
   button.textContent = label;
 }
 const isBusy = (button: HTMLElement | null) => button?.getAttribute("aria-disabled") === "true";
@@ -2790,7 +2773,7 @@ addForm.addEventListener("submit", async (e) => {
       markInvalid(branchInput, addError);
     }
   } finally {
-    clearBusy(submit, addSubmitLabel());
+    setBusy(submit, addSubmitLabel(), false);
   }
   // Mesmo com erro parcial (ex.: API criada, front falhou) o que foi criado aparece na lista.
   await refresh();
@@ -3084,7 +3067,7 @@ editForm.addEventListener("submit", async (e) => {
     }
     return;
   } finally {
-    clearBusy(submit, tr("Salvar"));
+    setBusy(submit, tr("Salvar"), false);
   }
   await afterEdit(ed, pair);
 });
@@ -3370,7 +3353,7 @@ removeForm.addEventListener("submit", async (e) => {
     }
     return;
   } finally {
-    clearBusy(removeOk, tr("Remover"));
+    setBusy(removeOk, tr("Remover"), false);
   }
   await forgetWorktree(project, wt);
   headerNote(false, null, [tr("Removida: {0}", wt.label), ...notes].join(" · "));
@@ -3492,19 +3475,10 @@ function syncBulk() {
 const MAIN_WHY = tr("· pasta principal do repositório: o git não remove");
 
 function bulkRow(project: string, wt: Worktree) {
-  const box = document.createElement("input");
-  box.type = "checkbox";
-  box.value = wt.id;
-  const why = document.createElement("span");
-  why.className = "why";
   const state = lineState(project, wt);
-  if (BUSY.includes(state)) {
-    box.disabled = true;
-    why.textContent = tr("· {0}: troque antes", say(project, wt, state));
-  } else if (bulkMains.has(wt.id)) {
-    box.disabled = true;
-    why.textContent = MAIN_WHY;
-  }
+  const reason = BUSY.includes(state) ? tr("· {0}: troque antes", say(project, wt, state)) : bulkMains.has(wt.id) ? MAIN_WHY : "";
+  const box = Object.assign(document.createElement("input"), { type: "checkbox", value: wt.id, disabled: !!reason });
+  const why = el("span", { className: "why", textContent: reason });
   return el("li", {}, el("label", { className: "check" }, box, " ", el("span", {}, ...labelNodes(wt.label)), why));
 }
 
@@ -3519,7 +3493,7 @@ function openBulkRemove(project: string) {
   bulkList.replaceChildren(...proj.worktrees.map((wt) => bulkRow(project, wt)));
   bulkBranch.checked = false;
   bulkError.replaceChildren();
-  clearBusy(bulkOk, tr("Remover"));
+  setBusy(bulkOk, tr("Remover"), false);
   syncBulk();
   bulkDialog.showModal();
   // Destrutivo: o foco começa no Cancelar, como no Remover.
@@ -3585,7 +3559,7 @@ bulkForm.addEventListener("submit", async (e) => {
       if (fe.created.length) await forgetWorktree(project, wt, false);
     }
   }
-  clearBusy(bulkOk, tr("Remover"));
+  setBusy(bulkOk, tr("Remover"), false);
   await refresh();
   render();
   if (removed.length) headerNote(false, project, [tr("Removidas: {0}", removed.join(", ")), ...notes].join(" · "));
@@ -3717,7 +3691,7 @@ async function cloneFromGithub(t: Tab, button: HTMLButtonElement) {
     msg.textContent = String(err);
     markInvalid(input, msg);
   } finally {
-    clearBusy(button, tr("Clonar…"));
+    setBusy(button, tr("Clonar…"), false);
     input.readOnly = false;
   }
 }
@@ -3839,7 +3813,7 @@ projectForm.addEventListener("submit", async (e) => {
       markInvalid(pfield("name"), projectError);
     }
   } finally {
-    clearBusy(submit, tr("Criar projeto"));
+    setBusy(submit, tr("Criar projeto"), false);
   }
 });
 
@@ -3849,14 +3823,12 @@ $("#new-project").addEventListener("click", () => openProjectDialog());
 // ---------- reler worktrees ----------
 
 const reloadBtn = $<HTMLButtonElement>("#reload");
-let reloading = false;
 
 const worktreeNames = () => new Map(config.projects.flatMap((p) => p.worktrees.map((wt) => [key(p.name, wt.id), `${p.name} / ${wt.label}`] as const)));
 
 /** Relê o `git worktree list` na hora (worktree criada pelo terminal, por exemplo) e diz no cabeçalho o que mudou. */
 async function reload() {
-  if (reloading) return;
-  reloading = true;
+  if (isBusy(reloadBtn)) return;
   // aria-disabled e não disabled: o botão focado continua com o foco do teclado.
   reloadBtn.setAttribute("aria-disabled", "true");
   reloadBtn.setAttribute("aria-busy", "true");
@@ -3864,7 +3836,6 @@ async function reload() {
   try {
     await refresh();
   } finally {
-    reloading = false;
     reloadBtn.removeAttribute("aria-disabled");
     reloadBtn.removeAttribute("aria-busy");
   }
@@ -4030,14 +4001,10 @@ window.addEventListener(
   (e) => {
     // Com um diálogo aberto, nada atrás dele responde: a paleta abriria presa sob o véu.
     if (!e.ctrlKey || !e.shiftKey || document.querySelector("dialog[open]")) return;
-    // Com a paleta aberta, só o próprio Ctrl+Shift+K (que a fecha): os outros agiam atrás dela (Ctrl+Shift+X parava a API
-    // e o rodapé dela ficava desatualizado).
-    if (!palette.hidden && e.code !== "KeyK") {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
     if (e.code === "KeyK") palette.hidden ? openPalette() : closePalette();
+    // Com a paleta aberta, só o próprio Ctrl+Shift+K (que a fecha): os outros, engolidos aqui, agiam atrás dela
+    // (Ctrl+Shift+X parava a API e o rodapé dela ficava desatualizado).
+    else if (!palette.hidden) {}
     else if (e.code === "KeyB") toggleAndFocus();
     else if (e.code === "KeyE") focusBoard();
     else if (e.code === "KeyH") helpEl.togglePopover();
@@ -4246,7 +4213,7 @@ async function installUpdate(button?: HTMLButtonElement) {
   } catch (e) {
     headerNote(true, null, tr("Não consegui atualizar: {0}", e instanceof Error ? e.message : e), releaseLink());
   } finally {
-    if (button) clearBusy(button, tr("Atualizar"));
+    if (button) setBusy(button, tr("Atualizar"), false);
   }
 }
 
@@ -4278,7 +4245,7 @@ async function checkUpdate(manual = false) {
   } catch (e) {
     if (manual) renderVersion(tr("Não consegui verificar: {0}", e instanceof Error ? e.message : e));
   } finally {
-    if (manual) clearBusy(checkBtn, tr("Verificar agora"));
+    if (manual) setBusy(checkBtn, tr("Verificar agora"), false);
     syncTray();
   }
 }
