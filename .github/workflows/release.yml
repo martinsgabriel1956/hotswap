@@ -69,6 +69,8 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: scripts/release.sh
 
   # O .dmg só compila num Mac: entra no release que o job de cima criou. Se falhar, "Re-run failed jobs" tenta de novo
@@ -88,9 +90,22 @@ jobs:
 
       - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm ci
-      - run: npm run tauri build -- --target universal-apple-darwin --bundles dmg
+      # O app.tar.gz (com a .sig) é o que o update pelo app baixa; o .dmg é para instalar a primeira vez.
+      - run: npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
 
+      # Universal: o mesmo pacote para Apple Silicon e Intel, acrescentado ao latest.json que o job de cima publicou.
       - name: Anexar ao release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "v$VERSION" "src-tauri/target/universal-apple-darwin/release/bundle/dmg/hotswap_${VERSION}_universal.dmg"
+        run: |
+          bundle=src-tauri/target/universal-apple-darwin/release/bundle
+          tgz="hotswap_${VERSION}_universal.app.tar.gz"
+          cp "$bundle/macos/hotswap.app.tar.gz" "$tgz"
+          gh release download "v$VERSION" -p latest.json
+          jq --arg url "https://github.com/${{ github.repository }}/releases/download/v$VERSION/$tgz" --arg signature "$(cat "$bundle/macos/hotswap.app.tar.gz.sig")" \
+            '.platforms["darwin-aarch64"] = {signature: $signature, url: $url} | .platforms["darwin-x86_64"] = .platforms["darwin-aarch64"]' latest.json > latest.new
+          mv latest.new latest.json
+          gh release upload "v$VERSION" "$bundle/dmg/hotswap_${VERSION}_universal.dmg" "$tgz" latest.json --clobber

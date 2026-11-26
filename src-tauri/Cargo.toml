@@ -27,6 +27,8 @@ portable-pty = "0.9"
 tokio = { version = "1", features = ["time"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
+# Atualizar pelo app: baixa o pacote do release (latest.json), confere a assinatura e instala.
+tauri-plugin-updater = "2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -3540,7 +3540,7 @@ function syncTray() {
 listen<string>("tray", ({ payload }) => {
   if (document.querySelector("dialog[open]")) return;
   if (payload === "palette") return palette.hidden && openPalette();
-  if (payload === "update") return update && openRelease();
+  if (payload === "update") return installUpdate();
   if (payload === "new") return openAddDialog(current?.project);
   if (payload === "stop" || payload === "start") return toggleRun(true, payload);
   if (payload.startsWith("wt:")) {
@@ -4297,11 +4297,26 @@ let appVersion = "";
 const openRelease = () => invoke("open_url", { url: update!.url });
 // No cabeçalho, com o contorno das ações do recado (note-act); nos Ajustes, como os outros botões de lá.
 const releaseLink = (className = "note-act") => el("button", { type: "button", className, textContent: tr("Ver o release"), onclick: openRelease });
+const updateBtn = (className = "note-act") => el("button", { type: "button", className, textContent: tr("Atualizar"), onclick: (e: MouseEvent) => installUpdate(e.currentTarget as HTMLButtonElement) });
+
+/** Baixa, confere a assinatura e instala pelo app (o Rust reinicia em seguida). Sem pacote para esta instalação no
+ *  latest.json, ou se falhar, cai no release para instalar à mão. */
+async function installUpdate(button?: HTMLButtonElement) {
+  if (!update || (button && isBusy(button))) return;
+  if (button) setBusy(button, tr("Atualizando…"));
+  try {
+    if ((await invoke<string>("install_update")) === "none") openRelease();
+  } catch (e) {
+    headerNote(true, null, tr("Não consegui atualizar: {0}", e instanceof Error ? e.message : e), releaseLink());
+  } finally {
+    if (button) clearBusy(button, tr("Atualizar"));
+  }
+}
 
 /** Ajustes → Versão: a instalada e, se houver, a nova com o link. `say`: o resultado de um "Verificar agora". */
 function renderVersion(say?: string) {
   versionNow.textContent = appVersion ? `Hotswap ${appVersion}` : "";
-  if (update) versionSay.replaceChildren(tr("Hotswap {0} disponível ", update.version), releaseLink("btn small"));
+  if (update) versionSay.replaceChildren(tr("Hotswap {0} disponível ", update.version), updateBtn("btn small"));
   else versionSay.textContent = say ?? "";
 }
 
@@ -4318,7 +4333,7 @@ async function checkUpdate(manual = false) {
     update = isNewer(version, appVersion) ? { version, url: rel.html_url } : null;
     if (update && load("updateNoticed", "") !== version) {
       save("updateNoticed", version);
-      headerNote(true, null, el("span", { className: "news", textContent: tr("Hotswap {0} disponível", version) }), releaseLink());
+      headerNote(true, null, el("span", { className: "news", textContent: tr("Hotswap {0} disponível", version) }), updateBtn());
     }
     renderVersion(manual ? tr("Esta é a versão mais recente.") : undefined);
   } catch (e) {

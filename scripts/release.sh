@@ -6,8 +6,16 @@
 #   scripts/release.sh
 # À mão, os pacotes linkam contra a glibc desta máquina; os do CI (ubuntu-22.04) instalam também nas distros mais antigas.
 # O .dmg do macOS não sai daqui: um job do release.yml, num Mac, anexa ele ao release depois; à mão, o release sai sem ele.
+# Cada pacote sai assinado para o update pelo app (latest.json). A chave privada vem de TAURI_SIGNING_PRIVATE_KEY (o secret
+# no CI) ou, à mão, de ~/.tauri/hotswap.key; sem ela os apps instalados recusam o update.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+  [ -f ~/.tauri/hotswap.key ] || { echo "Sem a chave de assinatura: defina TAURI_SIGNING_PRIVATE_KEY ou crie ~/.tauri/hotswap.key." >&2; exit 1; }
+  TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/hotswap.key)
+fi
+export TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
 
 VERSION=$(jq -r .version src-tauri/tauri.conf.json)
 deb=src-tauri/target/release/bundle/deb/hotswap_${VERSION}_amd64.deb
@@ -73,5 +81,15 @@ prev=$(git describe --tags --abbrev=0 2>/dev/null || true)
 } > "$out/notes.md"
 cat "$out/notes.md"
 
-gh release create "v$VERSION" "$deb" "$rpm" "$appimage" "$exe" "$out/PKGBUILD" \
+# O que o updater lê: um pacote por tipo de instalação ({os}-{arch}-{tipo}, e {os}-{arch} quando não acha o tipo),
+# com a assinatura no próprio JSON. O macOS entra depois, pelo job dele no release.yml.
+dl="$repo/releases/download/v$VERSION"
+entry() { jq -n --arg url "$dl/$(basename "$1")" --arg signature "$(cat "$1.sig")" '{signature: $signature, url: $url}'; }
+jq -n --arg version "$VERSION" --arg notes "$repo/releases/tag/v$VERSION" --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson deb "$(entry "$deb")" --argjson rpm "$(entry "$rpm")" --argjson appimage "$(entry "$appimage")" --argjson exe "$(entry "$exe")" \
+  '{version: $version, notes: $notes, pub_date: $pub_date, platforms: {
+    "linux-x86_64-deb": $deb, "linux-x86_64-rpm": $rpm, "linux-x86_64-appimage": $appimage, "linux-x86_64": $appimage,
+    "windows-x86_64-nsis": $exe, "windows-x86_64": $exe}}' > "$out/latest.json"
+
+gh release create "v$VERSION" "$deb" "$rpm" "$appimage" "$exe" "$out/PKGBUILD" "$out/latest.json" \
   --target "$(git rev-parse HEAD)" --title "Hotswap $VERSION" --notes-file "$out/notes.md"

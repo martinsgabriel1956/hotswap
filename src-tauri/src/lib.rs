@@ -126,6 +126,34 @@ fn set_lang(lang: String) {
     EN.store(lang == "en", std::sync::atomic::Ordering::Relaxed);
 }
 
+/// Atualiza pelo release do GitHub (latest.json): "none" se não há versão nova para este pacote (o front abre o release),
+/// "canceled" se havia processos rodando e a pessoa desistiu. Instalado, reinicia o app e não volta.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<&'static str, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let Some(update) = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())? else {
+        return Ok("none");
+    };
+    if app.state::<pty::Ptys>().any_busy() {
+        let go = app
+            .dialog()
+            .message(tr!(
+                "Há processos rodando nos terminais. Atualizar reinicia o Hotswap e encerra todos eles.",
+                "Processes are running in the terminals. Updating restarts Hotswap and ends all of them."
+            ))
+            .title(tr!("Atualizar o Hotswap para {}", "Update Hotswap to {}", update.version))
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancelCustom(tr!("Atualizar", "Update"), tr!("Cancelar", "Cancel")))
+            .blocking_show();
+        if !go {
+            return Ok("canceled");
+        }
+    }
+    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    app.state::<pty::Ptys>().kill_all();
+    app.restart()
+}
+
 /// O front remonta o menu quando muda o que ele mostra (projetos, worktree atual, quem está de pé).
 #[tauri::command]
 fn set_tray_menu(app: AppHandle, entries: Vec<TrayEntry>) -> Result<(), String> {
@@ -173,6 +201,7 @@ pub fn run() {
         // Abrir o app de novo só traz a janela existente: duas instâncias subiriam os dev servers em dobro.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_window(app)))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(pty::Ptys::default())
         .setup(|app| Ok(setup_tray(app.handle())?))
         // O X só esconde na bandeja; os dev servers continuam rodando. Sair é pelo menu da bandeja.
@@ -184,6 +213,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             set_lang,
+            install_update,
             set_tray_menu,
             pty::pty_spawn,
             pty::pty_write,
