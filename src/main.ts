@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -19,6 +20,7 @@ import { searchKey } from "./search";
 import { restartRefusal } from "./restart";
 import { deafSides, lateText, startEnd } from "./start";
 import { pullErrorLine, pullErrorSummary } from "./pull";
+import { isNewer } from "./update";
 import { envPrefix, fill, movesOwnPort, portMismatch, propose, templateError, type Ports } from "./parallel";
 
 /** `startCommand`: o que sobe (o da branch, senão o do projeto); `projectStart`: o do projeto.
@@ -573,6 +575,8 @@ const halted = new Set<number>();
 let current: { project: string; wt: Worktree } | null = null;
 // Último menu mandado à bandeja (syncTray): aqui em cima porque o render pode rodar antes da seção da bandeja.
 let trayJson = "";
+// Release mais novo que o instalado (checkUpdate), ou null; aqui em cima pelo mesmo motivo.
+let update: { version: string; url: string } | null = null;
 let tab: Tab = "api";
 // Estado do git por pasta de lado (mudanças, commits à frente/atrás), relido junto com a lista, não no ciclo do pty_status.
 let gitStates = new Map<string, GitState>();
@@ -3407,6 +3411,7 @@ function syncTray() {
     const live = isLive(project, wt);
     entries.push(trayItem(live ? "stop" : "start", `${live ? "Parar" : "Subir"} ${project} / ${wt.label}`, !stopping.has(project)));
   }
+  if (update) entries.unshift(trayItem("update", `Hotswap ${update.version} disponível…`), { kind: "separator" });
   entries.push(trayItem("palette", "Trocar de worktree… (Ctrl+Shift+K)"), trayItem("new", "Nova worktree…", config.projects.length > 0));
   if (config.projects.length) entries.push({ kind: "separator" });
   for (const p of config.projects) {
@@ -3428,6 +3433,7 @@ function syncTray() {
 listen<string>("tray", ({ payload }) => {
   if (document.querySelector("dialog[open]")) return;
   if (payload === "palette") return palette.hidden && openPalette();
+  if (payload === "update") return update && openRelease();
   if (payload === "new") return openAddDialog(current?.project);
   if (payload === "stop" || payload === "start") return toggleRun(true, payload);
   if (payload.startsWith("wt:")) {
@@ -4151,6 +4157,58 @@ themeBtn.addEventListener("click", () => {
 });
 scheme.addEventListener("change", applyTheme);
 applyTheme();
+
+// ---------- versão nova ----------
+
+const LATEST_API = "https://api.github.com/repos/martinsgabriel1956/hotswap/releases/latest";
+const CHECK_MS = 6 * 60 * 60 * 1000;
+const versionNow = $("#version-now");
+const versionSay = $("#version-say");
+const checkBtn = $<HTMLButtonElement>("#check-update");
+let appVersion = "";
+
+const openRelease = () => invoke("open_url", { url: update!.url });
+// No cabeçalho, com o contorno das ações do recado (note-act); nos Ajustes, como os outros botões de lá.
+const releaseLink = (className = "note-act") => el("button", { type: "button", className, textContent: "Ver o release", onclick: openRelease });
+
+/** Ajustes → Versão: a instalada e, se houver, a nova com o link. `say`: o resultado de um "Verificar agora". */
+function renderVersion(say?: string) {
+  versionNow.textContent = appVersion ? `Hotswap ${appVersion}` : "";
+  if (update) versionSay.replaceChildren(`Hotswap ${update.version} disponível `, releaseLink("btn small"));
+  else versionSay.textContent = say ?? "";
+}
+
+/** Pergunta ao GitHub pelo último release. Sem rede ou com o GitHub fora, fica calado (só o "Verificar agora" diz).
+ *  O aviso no cabeçalho aparece uma vez por versão; os Ajustes e a bandeja seguem mostrando até atualizar. */
+async function checkUpdate(manual = false) {
+  if (!appVersion) return;
+  if (manual) setBusy(checkBtn, "Verificando…");
+  try {
+    const res = await fetch(LATEST_API, { headers: { Accept: "application/vnd.github+json" } });
+    if (!res.ok) throw new Error(`o GitHub respondeu ${res.status}`);
+    const rel = (await res.json()) as { tag_name: string; html_url: string };
+    const version = rel.tag_name.replace(/^v/, "");
+    update = isNewer(version, appVersion) ? { version, url: rel.html_url } : null;
+    if (update && load("updateNoticed", "") !== version) {
+      save("updateNoticed", version);
+      headerNote(true, null, el("span", { className: "news", textContent: `Hotswap ${version} disponível` }), releaseLink());
+    }
+    renderVersion(manual ? "Esta é a versão mais recente." : undefined);
+  } catch (e) {
+    if (manual) renderVersion(`Não consegui verificar: ${e instanceof Error ? e.message : e}`);
+  } finally {
+    if (manual) clearBusy(checkBtn, "Verificar agora");
+    syncTray();
+  }
+}
+
+checkBtn.addEventListener("click", () => isBusy(checkBtn) || checkUpdate(true));
+getVersion().then((v) => {
+  appVersion = v;
+  renderVersion();
+  checkUpdate();
+  setInterval(checkUpdate, CHECK_MS);
+});
 
 // ---------- opacidade ----------
 

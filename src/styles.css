@@ -2263,6 +2263,27 @@ dialog.form .pick[aria-disabled="true"] {
   gap: 0 16px;
 }
 
+#settings .version-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+}
+
+#settings .version .fine {
+  margin-left: 0;
+}
+
+#settings .version .fine:empty {
+  display: none;
+}
+
+/* versão nova: notícia, não falha; a primeira parte do #alert é vermelha para as quedas */
+#alert > span.news:first-child {
+  color: var(--ink);
+}
+
 /* ---------- paleta ---------- */
 
 /* Nunca passa da janela (zoom alto): a lista cede altura e o rodapé, que diz o que o Enter encerra, fica sempre à vista. */
