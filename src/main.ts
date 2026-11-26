@@ -317,15 +317,17 @@ function editorSide(wt: Worktree): Tab {
 }
 /** Ctrl+Shift+O e o ⋯: abre a pasta da aba visível no editor escolhido em "Abrir com…", senão no `editorCommand` (o
  *  backend lê o config na hora). Sem nenhum, abre a lista; se o editor não abre, a segunda faixa oferece outro. */
-function openInEditor() {
-  if (!current) return headerNote(false, null, "Escolha uma worktree primeiro.");
-  const { project, wt } = current;
+function openInEditor(target = current) {
+  if (!target) return headerNote(false, null, "Escolha uma worktree primeiro.");
+  const { project, wt } = target;
   const side = editorSide(wt);
   invoke<boolean>("open_in_editor", { path: wt[side]!.path }).then(
     (ok) => {
       if (alertEl.querySelector(".editor")) clearNote(alertEl);
       if (ok) headerNote(false, project, `Abrindo ${TAB_LABEL[side]} no editor`);
-      else openWith();
+      // "Abrir com…" lista para a worktree em serviço; de outra (menu da linha), o cabeçalho diz onde escolher.
+      else if (target === current) openWith();
+      else headerNote(false, project, "Nenhum editor escolhido · abra a worktree e use Abrir com… no ⋯");
     },
     (err) =>
       headerNote(
@@ -346,7 +348,7 @@ function pullBlocked(project: string, wt: Worktree) {
 }
 
 /** "Atualizar (pull)" no ⋯, para a worktree em serviço. Indisponível, fica aria-disabled com o motivo, e o clique o diz. */
-function pullItem(project: string, wt: Worktree) {
+function pullItem(project: string, wt: Worktree, menu = moreMenu) {
   const blocked = pullBlocked(project, wt);
   const paths = TABS.flatMap(t => (wt[t] ? [wt[t]!.path] : []));
   const b = el(
@@ -356,7 +358,7 @@ function pullItem(project: string, wt: Worktree) {
       className: "more-item",
       title: blocked ?? `git pull --ff-only em ${paths.join(" e ")}`,
       ariaLabel: blocked ? `Atualizar (pull): indisponível; ${blocked}` : "Atualizar (pull)",
-      onclick: () => (moreMenu.hidePopover(), pullWorktree(project, wt))
+      onclick: () => (menu.hidePopover(), pullWorktree(project, wt))
     },
     el("span", { textContent: "Atualizar (pull)" })
   );
@@ -406,9 +408,9 @@ function tabBranch(wt: Worktree) {
 
 /** "Ver PR" no ⋯: abre no navegador a PR da branch da aba visível (`gh pr view --web`, solto do app e fora do PTY, com o
  *  --repo do origin, como o "Da PR"). Sem PR, sem gh ou sem login, o cabeçalho diz. */
-function viewPr() {
-  if (!current) return;
-  const { project, wt } = current;
+function viewPr(target = current) {
+  if (!target) return;
+  const { project, wt } = target;
   const side = editorSide(wt);
   const branch = tabBranch(wt);
   invoke<boolean>("open_pr", { path: wt[side]!.path, branch }).then(
@@ -445,7 +447,7 @@ async function renderEditors() {
   if (!editorsMode) return;
   const pick = (id: string | null) => () => {
     moreMenu.hidePopover();
-    invoke("set_editor", { id }).then(openInEditor, (err) => headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: "Não gravei o editor" }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) })));
+    invoke("set_editor", { id }).then(() => openInEditor(), (err) => headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: "Não gravei o editor" }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) })));
   };
   const keys = (on: boolean) => (on ? [el("span", { className: "keys", textContent: "Ctrl+Shift+O" })] : []);
   const items = list.editors.map((e) => el("button", { type: "button", className: "more-item", title: e.id, onclick: pick(e.id) }, el("span", { textContent: e.name }), ...keys(e.id === list.chosen)));
@@ -1634,28 +1636,112 @@ const BUSY: LineState[] = [...LIVE, "stop", "kill"];
 const PENCIL = "M11 2.5 13.5 5 6 12.5H3.5V10ZM9.5 4 12 6.5";
 
 /** Lápis da linha: irmão do botão de trocar (botão dentro de botão é inválido). Rodando, fica aria-disabled com o motivo. */
-function editButton(project: string, wt: Worktree) {
+/** Lápis (editar) ou lixeira (remover) da linha: os dois só com a worktree parada, com o motivo quando não. */
+function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
+  const [verb, open, path] = kind === "edit" ? ["Editar", openEditDialog, PENCIL] : ["Remover", openRemoveDialog, TRASH_ICON];
   const busyNow = BUSY.includes(lineState(project, wt));
   const spoken = spokenLabel(wt.label);
   const b = el(
     "button",
     {
       type: "button",
-      className: "icon-btn edit",
+      className: `icon-btn ${kind}`,
       tabIndex: -1,
-      title: busyNow ? `${wt.label}, ${say(project, wt, lineState(project, wt))}: troque para outra worktree do projeto antes de editar` : `Editar ${wt.label}`,
-      ariaLabel: busyNow ? `Editar ${spoken}: indisponível, ${say(project, wt, lineState(project, wt))}; troque para outra worktree do projeto antes` : `Editar ${spoken}`,
+      title: busyNow ? `${wt.label}, ${say(project, wt, lineState(project, wt))}: troque para outra worktree do projeto antes de ${verb.toLowerCase()}` : `${verb} ${wt.label}`,
+      ariaLabel: busyNow ? `${verb} ${spoken}: indisponível, ${say(project, wt, lineState(project, wt))}; troque para outra worktree do projeto antes` : `${verb} ${spoken}`,
       onclick: () => {
         const fresh = findWt(project, wt.id);
-        if (fresh && !BUSY.includes(lineState(project, fresh))) openEditDialog(project, fresh);
+        if (fresh && !BUSY.includes(lineState(project, fresh))) open(project, fresh);
       },
     },
-    icon(PENCIL),
+    icon(path),
   );
   if (busyNow) b.setAttribute("aria-disabled", "true");
-  b.dataset.key = `edit:${key(project, wt.id)}`;
+  b.dataset.key = `${kind}:${key(project, wt.id)}`;
   return b;
 }
+
+// ---------- menu da linha (botão direito) ----------
+
+/** Botão direito (ou a tecla de menu / Shift+F10) numa linha do painel: as ações daquela worktree, em serviço ou não.
+ *  Mesma superfície do ⋯. Indisponível (rodando), Editar e Remover ficam aria-disabled e o clique diz por quê. */
+const rowMenu = $("#row-menu");
+let rowMenuFor: { project: string; wt: Worktree } | null = null;
+
+function rowMenuItem(label: string, act: () => void, opts: { title?: string; keys?: string; blocked?: string | null } = {}) {
+  const b = el(
+    "button",
+    {
+      type: "button",
+      className: "more-item",
+      title: opts.blocked ?? opts.title ?? "",
+      ariaLabel: opts.blocked ? `${label}: indisponível; ${opts.blocked}` : null,
+      onclick: () => {
+        rowMenu.hidePopover();
+        if (opts.blocked) headerNote(false, rowMenuFor?.project ?? null, opts.blocked);
+        else act();
+      },
+    },
+    el("span", { textContent: label }),
+    ...(opts.keys ? [el("span", { className: "keys", textContent: opts.keys })] : []),
+  );
+  if (opts.blocked) b.setAttribute("aria-disabled", "true");
+  return b;
+}
+
+function openRowMenu(project: string, wt: Worktree, x: number, y: number) {
+  rowMenuFor = { project, wt };
+  const state = lineState(project, wt);
+  const blocked = (verb: string) => (BUSY.includes(state) ? `${wt.label}, ${say(project, wt, state)}: troque para outra worktree do projeto antes de ${verb}` : null);
+  const isCurrent = currentKey() === key(project, wt.id);
+  const target = { project, wt };
+  rowMenu.setAttribute("aria-label", `Ações de ${spokenLabel(wt.label)}`);
+  rowMenu.replaceChildren(
+    el("p", { className: "more-head", textContent: wt.label }),
+    ...(isCurrent ? [] : [rowMenuItem("Abrir", () => select(project, wt), { keys: "Enter" })]),
+    rowMenuItem("Abrir no editor", () => openInEditor(target), { title: wt[editorSide(wt)]!.path, keys: isCurrent ? "Ctrl+Shift+O" : undefined }),
+    rowMenuItem("Ver PR", () => viewPr(target), { title: `gh pr view ${tabBranch(wt)} --web` }),
+    pullItem(project, wt, rowMenu),
+    rowMenuItem("Editar…", () => openEditDialog(project, wt), { blocked: blocked("editar") }),
+    rowMenuItem("Remover…", () => openRemoveDialog(project, wt), { blocked: blocked("remover") }),
+  );
+  rowMenu.showPopover();
+  // Dentro da janela: abre para a esquerda ou para cima quando não cabe.
+  const r = rowMenu.getBoundingClientRect();
+  rowMenu.style.left = `${Math.max(4, Math.min(x, innerWidth - r.width - 4))}px`;
+  rowMenu.style.top = `${Math.max(4, Math.min(y, innerHeight - r.height - 4))}px`;
+  rowMenu.querySelector<HTMLElement>("button")?.focus();
+}
+
+board.addEventListener("contextmenu", (e) => {
+  const row = (e.target as HTMLElement).closest(".row");
+  const line = row?.querySelector<HTMLElement>(".line");
+  if (!line) return;
+  e.preventDefault();
+  const [project, id] = line.dataset.key!.split("\u0000");
+  const wt = findWt(project, id);
+  if (!wt) return;
+  // Pelo teclado não há ponteiro: o menu sai embaixo do nome.
+  const r = line.getBoundingClientRect();
+  const byKeyboard = e.button !== 2 || (!e.clientX && !e.clientY);
+  openRowMenu(project, wt, byKeyboard ? r.left + 14 : e.clientX, byKeyboard ? r.bottom : e.clientY);
+});
+
+// Fechado (Esc, clique fora ou um item), o foco que estava no menu volta para a linha, se ela ainda existe.
+rowMenu.addEventListener("toggle", (e) => {
+  if ((e as ToggleEvent).newState !== "closed" || !rowMenuFor) return;
+  const k = key(rowMenuFor.project, rowMenuFor.wt.id);
+  rowMenuFor = null;
+  if (document.activeElement === document.body || rowMenu.contains(document.activeElement)) byKey(k)?.focus();
+});
+
+rowMenu.addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  e.preventDefault();
+  const items = [...rowMenu.querySelectorAll<HTMLElement>("button")];
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  items[(at + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
+});
 
 const TRASH_ICON = "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v3.5M9 7v3.5";
 const PARALLEL_ICON = "M5.5 2.5h8v7h-8ZM5.5 6.5H2.5v7H11V9.5";
@@ -1776,7 +1862,7 @@ function renderBoard() {
       el("div", { className: "platform-head" }, el("h2", {}, fold), par, bulk, add),
       // Recolhido, o erro some junto com as linhas: quem recolheu já viu e não quer o vermelho o dia todo.
       open ? problem : null,
-      el("ul", { className: "lines" }, ...shownWts.map((wt) => el("li", { className: "row" }, lineButton(p.name, wt), editButton(p.name, wt)))),
+      el("ul", { className: "lines" }, ...shownWts.map((wt) => el("li", { className: "row" }, lineButton(p.name, wt), rowAction("edit", p.name, wt), rowAction("trash", p.name, wt)))),
     );
   });
   // Config quebrado com uma worktree aberta (o centro está no terminal): o painel continua com a última leitura boa e diz por que parou de atualizar.
@@ -2148,10 +2234,13 @@ tabsEl.addEventListener("keydown", (e) => {
   $<HTMLButtonElement>(`#tab-${tab}`).focus();
 });
 
-// Painel pelo teclado: setas andam pelas linhas (ou pelos lápis, na coluna deles), → e ← entre a linha e o lápis, Esc volta ao terminal.
+// Painel pelo teclado: setas andam pelas linhas (ou pelos lápis ou lixeiras, na coluna deles), → e ← entre linha, lápis
+// e lixeira, Esc volta ao terminal.
+const ROW_COLUMNS = [".line", ".edit", ".trash"];
 board.addEventListener("keydown", (e) => {
   const at = document.activeElement as HTMLElement;
-  const column = at.classList.contains("edit") ? ".edit" : ".line";
+  const col = Math.max(0, ROW_COLUMNS.findIndex((c) => at.matches(c)));
+  const column = ROW_COLUMNS[col];
   const items = [...board.querySelectorAll<HTMLElement>(column)];
   const i = items.indexOf(at);
   if (i < 0) return;
@@ -2159,8 +2248,8 @@ board.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowUp") items[Math.max(i - 1, 0)].focus();
   else if (e.key === "Home") items[0].focus();
   else if (e.key === "End") items[items.length - 1].focus();
-  else if (e.key === "ArrowRight" && column === ".line") at.parentElement!.querySelector<HTMLElement>(".edit")!.focus();
-  else if (e.key === "ArrowLeft" && column === ".edit") at.parentElement!.querySelector<HTMLElement>(".line")!.focus();
+  else if (e.key === "ArrowRight" && col < ROW_COLUMNS.length - 1) at.parentElement!.querySelector<HTMLElement>(ROW_COLUMNS[col + 1])!.focus();
+  else if (e.key === "ArrowLeft" && col > 0) at.parentElement!.querySelector<HTMLElement>(ROW_COLUMNS[col - 1])!.focus();
   else if (e.key === "Escape") {
     closeOverlay();
     render(true);
@@ -3320,9 +3409,14 @@ const removeOk = removeForm.querySelector<HTMLButtonElement>('button[value="ok"]
 const removeCancel = removeForm.querySelector<HTMLButtonElement>('button[value="cancel"]')!;
 const removeOpen = editForm.querySelector<HTMLButtonElement>("button.remove")!;
 
-// Por cima do editar (que só abre com a worktree parada): diz as pastas que somem antes de apagar.
-removeOpen.addEventListener("click", () => {
-  const { project, wt, branches } = editing!;
+/** O que o remover vai apagar: abre pela lixeira da linha ou por cima do editar. */
+let removing: { project: string; wt: Worktree; branches: Record<Tab, string> } | null = null;
+
+// Só com a worktree parada (lixeira e editar já checam): diz as pastas que somem antes de apagar.
+function openRemoveDialog(project: string, wt: Worktree) {
+  const [api, front] = wt.id.split("|");
+  const branches: Record<Tab, string> = { api, front };
+  removing = { project, wt, branches };
   const sides = TABS.filter((t) => wt[t]);
   removeForm.querySelector(".where")!.replaceChildren(el("span", { className: "project", textContent: project }), " / ", ...labelNodes(wt.label));
   removeForm.querySelector(".paths")!.replaceChildren(...sides.map((t) => el("p", { className: "preview" }, el("strong", { textContent: `${TAB_LABEL[t]}: ` }), ...pathNodes(wt[t]!.path))));
@@ -3334,13 +3428,14 @@ removeOpen.addEventListener("click", () => {
   removeDialog.showModal();
   // Destrutivo: o foco começa no Cancelar, para um Enter de reflexo não apagar nada.
   removeCancel.focus();
-});
+}
+removeOpen.addEventListener("click", () => openRemoveDialog(editing!.project, editing!.wt));
 
 removeForm.addEventListener("submit", async (e) => {
-  if ((e.submitter as HTMLButtonElement | null)?.value !== "ok" || !editing) return;
+  if ((e.submitter as HTMLButtonElement | null)?.value !== "ok" || !removing) return;
   e.preventDefault();
   if (isBusy(removeOk)) return;
-  const ed = editing;
+  const ed = removing;
   const { project, wt } = ed;
   removeError.textContent = "";
   const state = lineState(project, wt);
@@ -3388,8 +3483,14 @@ async function forgetWorktree(project: string, wt: Worktree, reread = true) {
   if (reread) await refresh();
 }
 
-// Cancelar volta ao editar, no botão que abriu; removida (o editar já fechou), o foco vai para o painel.
-removeDialog.addEventListener("close", () => (editDialog.open ? removeOpen.focus() : focusBoard()));
+// Cancelar volta ao botão que abriu (o do editar ou a lixeira da linha); removida, o foco vai para o painel.
+removeDialog.addEventListener("close", () => {
+  const trash = removing && byKey(`trash:${key(removing.project, removing.wt.id)}`);
+  removing = null;
+  if (editDialog.open) removeOpen.focus();
+  else if (trash) trash.focus();
+  else focusBoard();
+});
 
 // ---------- bandeja ----------
 
