@@ -150,10 +150,7 @@ fn port_open(port: u16) -> bool {
 /// principal (comando async) e fora do `pty_status`, que não espera por isso.
 #[tauri::command]
 pub async fn ports_open(ports: Vec<u16>) -> Vec<bool> {
-    std::thread::scope(|s| {
-        let checks: Vec<_> = ports.iter().map(|&p| s.spawn(move || port_open(p))).collect();
-        checks.into_iter().map(|c| c.join().unwrap_or(false)).collect()
-    })
+    crate::par_map(&ports, |&p| port_open(p)).into_iter().map(|c| c.unwrap_or(false)).collect()
 }
 
 /// Abre o endereço do dev server, ou um link clicado no terminal, no navegador padrão. Só http(s): o resto não sai do app.

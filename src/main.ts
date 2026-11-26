@@ -1085,7 +1085,9 @@ function activate(project: string, wt: Worktree, created: boolean) {
   queues.set(project, (queues.get(project) ?? Promise.resolve()).then(run, run));
 }
 
-async function select(project: string, wt: Worktree) {
+/** `wt` some quando o config mudou desde que o botão foi montado (findWt na hora do clique): aí não faz nada. */
+async function select(project: string, wt: Worktree | undefined) {
+  if (!wt) return;
   closeOverlay();
   // A falha que ficou no cabeçalho já foi vista: a próxima troca a tira.
   if (alertEl.childElementCount) clearNote(alertEl);
@@ -1122,13 +1124,9 @@ function render(focus = false) {
 
   if (!current) {
     destEl.replaceChildren();
-    destEl.dataset.sig = "";
     tabsEl.replaceChildren();
-    tabsEl.dataset.sig = "";
-    urlEl.hidden = true;
-    haltTabEl.hidden = haltAllEl.hidden = true;
-    switchingEl.hidden = true;
-    searchEl.hidden = true;
+    destEl.dataset.sig = tabsEl.dataset.sig = "";
+    urlEl.hidden = haltTabEl.hidden = haltAllEl.hidden = switchingEl.hidden = searchEl.hidden = true;
     renderEmpty();
     fitHeader();
     return;
@@ -1535,10 +1533,7 @@ function lineButton(project: string, wt: Worktree) {
       title: [wt.label, STATE_HINT[state] ?? say(project, wt, state), git.text, endsText].filter(Boolean).join("\n"),
       ariaLabel: `${spokenLabel(wt.label)}${soloSay(wt)}: ${say(project, wt, state)}${git.text ? `; ${git.text}` : ""}`,
       // Busca a worktree na hora do clique: o botão pode ter sobrevivido a um refresh do config.
-      onclick: () => {
-        const fresh = findWt(project, wt.id);
-        if (fresh) select(project, fresh);
-      },
+      onclick: () => select(project, findWt(project, wt.id)),
     },
     el("span", { className: "name" }, el("span", { className: "top" }, el("span", { className: "branch" }, ...top)), pair, tag),
     // A palheta fica à direita, como a coluna de situação de um painel de partidas; nunca aberta, ela não ocupa a coluna (CSS) e o nome usa a largura.
@@ -1884,10 +1879,7 @@ function renderRunning() {
           className: "other",
           title: tr("Ir para {0} / {1} ({2})", p.name, wt.label, spoken),
           // Já está em serviço: selecionar não troca nada, só leva o terminal até ela.
-          onclick: () => {
-            const fresh = findWt(p.name, wt.id);
-            if (fresh) select(p.name, fresh);
-          },
+          onclick: () => select(p.name, findWt(p.name, wt.id)),
         },
         el("span", { className: "project", textContent: p.name }),
         el("span", { className: "sep", textContent: "/", ariaHidden: "true" }),
@@ -2719,15 +2711,14 @@ function syncSides() {
 projectSel.addEventListener("change", loadDefaults);
 addForm.addEventListener("input", syncSides);
 addForm.addEventListener("change", syncSides);
-for (const t of TABS) {
-  sideBox(t).querySelector<HTMLButtonElement>(".pick")!.addEventListener("click", async () => {
-    const dir = await pickFolder({ directory: true, defaultPath: sideDir(t).value || undefined, title: tr("Diretório das worktrees ({0})", TAB_LABEL[t]) });
-    if (typeof dir === "string") {
-      sideDir(t).value = dir;
-      syncSides();
-    }
-  });
+/** Botão de escolher pasta ao lado de um campo: a escolhida vai para o campo, e `then` atualiza o que depende dele. */
+async function pickInto(input: HTMLInputElement, title: string, then: () => void) {
+  const dir = await pickFolder({ directory: true, defaultPath: input.value || undefined, title });
+  if (typeof dir !== "string") return;
+  input.value = dir;
+  then();
 }
+for (const t of TABS) sideBox(t).querySelector<HTMLButtonElement>(".pick")!.addEventListener("click", () => pickInto(sideDir(t), tr("Diretório das worktrees ({0})", TAB_LABEL[t]), syncSides));
 
 addForm.addEventListener("submit", async (e) => {
   if ((e.submitter as HTMLButtonElement | null)?.value !== "ok") return;
@@ -2995,14 +2986,7 @@ editForm.addEventListener("change", (e) => {
 });
 for (const t of TABS) {
   for (const [name, pick] of [[`${t}-dir`, ".move-dir .pick"], [`${t}-new-dir`, ".create .pick"]]) {
-    ePart<HTMLButtonElement>(t, pick).addEventListener("click", async () => {
-      const input = editField<HTMLInputElement>(name);
-      const dir = await pickFolder({ directory: true, defaultPath: input.value || undefined, title: tr("Diretório ({0})", TAB_LABEL[t]) });
-      if (typeof dir === "string") {
-        input.value = dir;
-        syncEdit();
-      }
-    });
+    ePart<HTMLButtonElement>(t, pick).addEventListener("click", () => pickInto(editField<HTMLInputElement>(name), tr("Diretório ({0})", TAB_LABEL[t]), syncEdit));
   }
 }
 
@@ -3438,8 +3422,7 @@ listen<string>("tray", ({ payload }) => {
   if (payload === "stop" || payload === "start") return toggleRun(true, payload);
   if (payload.startsWith("wt:")) {
     const [project, id] = JSON.parse(payload.slice(3)) as [string, string];
-    const wt = findWt(project, id);
-    if (wt && key(project, id) !== currentKey()) select(project, wt);
+    if (key(project, id) !== currentKey()) select(project, findWt(project, id));
   }
 });
 
@@ -3759,12 +3742,7 @@ async function readWorktrees(t: Tab) {
 
 for (const t of TABS) {
   const box = projectForm.querySelector<HTMLFieldSetElement>(`fieldset[data-side="${t}"]`)!;
-  box.querySelector<HTMLButtonElement>(".pick")!.addEventListener("click", async () => {
-    const dir = await pickFolder({ directory: true, defaultPath: pfield(`${t}-repo`).value || undefined, title: tr("Repositório ({0})", TAB_LABEL[t]) });
-    if (typeof dir !== "string") return;
-    pfield(`${t}-repo`).value = dir;
-    readWorktrees(t);
-  });
+  box.querySelector<HTMLButtonElement>(".pick")!.addEventListener("click", () => pickInto(pfield(`${t}-repo`), tr("Repositório ({0})", TAB_LABEL[t]), () => readWorktrees(t)));
   // change: depois de colar ou digitar e sair do campo.
   pfield(`${t}-repo`).addEventListener("change", () => readWorktrees(t));
   // Um package manager por lado: troca o prefixo do start e reescreve o setup junto.

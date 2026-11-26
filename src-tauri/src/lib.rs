@@ -169,7 +169,14 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Uma thread por item, resultados na ordem dos itens (`None` onde a thread entrou em pânico).
+pub(crate) fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<Option<R>> {
+    std::thread::scope(|s| {
+        let runs: Vec<_> = items.iter().map(|i| s.spawn(|| f(i))).collect();
+        runs.into_iter().map(|r| r.join().ok()).collect()
+    })
+}
+
 pub fn run() {
     #[cfg(target_os = "macos")]
     host_env::adopt_shell_path();
