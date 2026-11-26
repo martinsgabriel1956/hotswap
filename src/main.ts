@@ -4073,7 +4073,6 @@ let helpFromBtn = false;
 helpEl.addEventListener("toggle", (e) => {
   if ((e as ToggleEvent).newState === "open") {
     helpFromBtn = document.activeElement === helpBtn;
-    srToggle.checked = config.screenReader;
     helpEl.focus();
     return;
   }
@@ -4081,6 +4080,20 @@ helpEl.addEventListener("toggle", (e) => {
   const at = document.activeElement;
   if (helpFromBtn && (at === document.body || at === helpBtn || helpEl.contains(at))) helpBtn.focus();
   else render(true);
+});
+
+// Ajustes (botão no rodapé do painel): tema, leitor de tela e opacidade. Como a ajuda, recebe o foco ao abrir e o devolve
+// ao botão ao fechar, a não ser que um clique fora já o tenha levado para outro lugar.
+const settingsEl = $("#settings");
+const settingsBtn = $("#settings-btn");
+settingsEl.addEventListener("toggle", (e) => {
+  if ((e as ToggleEvent).newState === "open") {
+    srToggle.checked = config.screenReader;
+    settingsEl.focus();
+    return;
+  }
+  const at = document.activeElement;
+  if (at === document.body || settingsEl.contains(at)) settingsBtn.focus();
 });
 
 // Modo leitor de tela do xterm: grava no config e relê, que aplica nos terminais abertos.
@@ -4110,17 +4123,26 @@ const THEME_NAME = { system: "do sistema", light: "claro", dark: "escuro" } as c
 // O clique anda em ciclo: sistema → claro → escuro → sistema.
 const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
+const themeRadios = [...document.querySelectorAll<HTMLInputElement>('#settings input[name="theme"]')];
+
 function applyTheme() {
   save("theme", themeChoice);
   const now = theme();
   const mode = themeChoice ?? "system";
   document.documentElement.dataset.theme = now;
   themeBtn.dataset.mode = mode;
+  for (const r of themeRadios) r.checked = r.value === mode;
   const next = THEME_NAME[NEXT_THEME[mode]];
   themeBtn.setAttribute("aria-label", `Tema ${THEME_NAME[mode]}; mudar para o ${next}`);
   themeBtn.title = `Tema ${THEME_NAME[mode]}${themeChoice ? "" : ` (agora ${THEME_NAME[now]})`} · clique para o ${next}`;
   for (const env of envs.values()) for (const pane of Object.values(env.panes)) pane.term.options.theme = termTheme();
 }
+
+for (const r of themeRadios)
+  r.addEventListener("change", () => {
+    themeChoice = r.value === "system" ? null : (r.value as Theme);
+    applyTheme();
+  });
 
 themeBtn.addEventListener("click", () => {
   const next = NEXT_THEME[themeChoice ?? "system"];

@@ -48,6 +48,9 @@
         <button id="reload" type="button" class="icon-btn" aria-label="Reler worktrees" title="Reler worktrees (Ctrl+Shift+L)">
           <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" /></svg>
         </button>
+        <button id="settings-btn" type="button" class="icon-btn" popovertarget="settings" aria-label="Ajustes" title="Ajustes: tema, leitor de tela e opacidade">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5h6M11.5 5h2M2.5 11h2M7.5 11h6" /><circle cx="10" cy="5" r="1.5" /><circle cx="6" cy="11" r="1.5" /></svg>
+        </button>
         <button id="theme" type="button" class="icon-btn">
           <svg class="icon mode-system" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor" /></svg>
           <svg class="icon mode-light" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.75" /><path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.6 3.6l1.05 1.05M11.35 11.35l1.05 1.05M3.6 12.4l1.05-1.05M11.35 4.65l1.05-1.05" /></svg>
@@ -76,7 +79,7 @@
           <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.25" class="dot" /><circle cx="8" cy="8" r="1.25" class="dot" /><circle cx="12.5" cy="8" r="1.25" class="dot" /></svg>
         </button>
         <div id="more-menu" popover role="group" aria-label="Mais ações"></div>
-        <button id="help-btn" type="button" class="icon-btn" popovertarget="help" aria-label="Atalhos, legenda, leitor de tela e opacidade" title="Atalhos, legenda, leitor de tela e opacidade (Ctrl+Shift+H)">
+        <button id="help-btn" type="button" class="icon-btn" popovertarget="help" aria-label="Atalhos e legenda" title="Atalhos e legenda (Ctrl+Shift+H)">
           <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3v.4" /><path d="M8 11.6v.1" /></svg>
         </button>
       </header>
@@ -102,7 +105,7 @@
       </div>
     </main>
 
-    <div id="help" popover tabindex="-1" role="dialog" aria-label="Atalhos, legenda, leitor de tela e opacidade">
+    <div id="help" popover tabindex="-1" role="dialog" aria-label="Atalhos e legenda">
       <section class="keys-col">
       <h2>Atalhos</h2>
       <p class="chord">Todos com <kbd>Ctrl</kbd><kbd>Shift</kbd> e mais a tecla:</p>
@@ -140,12 +143,23 @@
         <dt><span class="git" aria-hidden="true"><span class="dirty"></span><span><svg class="icon" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4" /></svg>2</span><span><svg class="icon" viewBox="0 0 16 16"><path d="M8 3v10M4 9l4 4 4-4" /></svg>1</span></span><span class="sr">Git</span></dt><dd>Embaixo da palheta, na linha atual e nas em serviço (nas outras, ao passar o cursor): o ponto diz que há mudança não commitada ou arquivo não rastreado; as setas, commits à frente e atrás do upstream</dd>
       </dl>
       </section>
-      <section class="sr-col">
+    </div>
+
+    <div id="settings" popover tabindex="-1" role="dialog" aria-label="Ajustes">
+      <section>
+      <h2 id="theme-title">Tema</h2>
+      <div class="choices" role="radiogroup" aria-labelledby="theme-title">
+        <label class="check"><input type="radio" name="theme" value="system" /> Do sistema</label>
+        <label class="check"><input type="radio" name="theme" value="light" /> Claro</label>
+        <label class="check"><input type="radio" name="theme" value="dark" /> Escuro</label>
+      </div>
+      </section>
+      <section>
       <h2>Leitor de tela</h2>
       <label class="check"><input type="checkbox" id="sr-toggle" /> Saída dos terminais acessível ao leitor de tela</label>
       <p class="fine" id="sr-note">Custa desempenho nos terminais. Fica gravado no config.</p>
       </section>
-      <section class="glass-col">
+      <section>
       <h2>Janela</h2>
       <label class="range">Opacidade <input type="range" id="opacity" min="40" max="100" step="5" aria-describedby="opacity-note" /> <output for="opacity" id="opacity-out"></output></label>
       <p class="fine" id="opacity-note">Abaixo de 100%, o fundo deixa ver o que está atrás da janela; o texto fica opaco. No Linux depende do compositor.</p>

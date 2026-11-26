@@ -2123,7 +2123,7 @@ dialog.form .pick[aria-disabled="true"] {
   outline: none;
 }
 
-#help h2 {
+:is(#help, #settings) h2 {
   margin: 0 0 8px;
   color: var(--ink-2);
   font: 700 12px/1 var(--ui);
@@ -2136,12 +2136,6 @@ dialog.form .pick[aria-disabled="true"] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px 28px;
-}
-
-#help :is(.sr-col, .glass-col) {
-  grid-column: 1 / -1;
-  padding-top: 14px;
-  border-top: 1px solid var(--rule);
 }
 
 @media (max-width: 560px) {
@@ -2210,14 +2204,14 @@ dialog.form .pick[aria-disabled="true"] {
   color: var(--ink-2);
 }
 
-#help label.check {
+#settings label.check {
   display: flex;
   align-items: center;
   min-height: 24px;
   cursor: pointer;
 }
 
-#help input[type="checkbox"] {
+#settings input:is([type="checkbox"], [type="radio"]) {
   width: 15px;
   height: 15px;
   margin: 0 6px 0 0;
@@ -2225,14 +2219,48 @@ dialog.form .pick[aria-disabled="true"] {
   accent-color: var(--ink);
 }
 
-#help .fine {
+#settings .fine {
   margin: 6px 0 0 21px;
   color: var(--ink-2);
   font-size: 13px;
 }
 
-#help .fine.error {
+#settings .fine.error {
   color: var(--fail);
+}
+
+/* ---------- ajustes ---------- */
+
+/* sobe do botão no rodapé do painel, colado à esquerda */
+#settings {
+  position: fixed;
+  inset: auto auto 48px 8px;
+  margin: 0;
+  width: min(340px, calc(100vw - 16px));
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--rail);
+  color: var(--ink);
+  box-shadow: var(--float-shadow);
+}
+
+#settings:focus {
+  outline: none;
+}
+
+#settings section + section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+#settings .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
 }
 
 /* ---------- paleta ---------- */
@@ -2976,20 +3004,25 @@ dialog.form fieldset:has([value="local"]:checked) .gh-row {
   background: transparent !important;
 }
 
-#help label.range {
+#settings label.range {
   display: flex;
   align-items: center;
   gap: 10px;
   min-height: 24px;
 }
 
-#help label.range input {
+#settings label.range input {
   flex: 1;
   max-width: 220px;
   accent-color: var(--ink);
 }
 
-#help label.range output {
+/* sem caixa à esquerda, a nota não recua os 21px de baixo do checkbox */
+#settings label.range + .fine {
+  margin-left: 0;
+}
+
+#settings label.range output {
   min-width: 4ch;
   color: var(--ink-2);
 }

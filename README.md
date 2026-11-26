@@ -22,7 +22,7 @@ It pairs the API and front worktrees by branch name and keeps **one worktree run
 - **Projects from the UI.** Point to local folders, or clone from GitHub with `gh` into a bare-repo layout.
 - **Keyboard first.** A command palette (`Ctrl+Shift+K`) and a shortcut for every action.
 - **Lives in the tray.** Closing the window keeps the dev servers running, and the tray menu switches worktrees, stops or starts the current one and opens the palette.
-- **Looks how you like.** System, light or dark theme, and a window opacity slider in the help panel.
+- **Looks how you like.** System, light or dark theme, and a window opacity slider, in the settings popover at the bottom of the sidebar.
 
 ## Installation
 
