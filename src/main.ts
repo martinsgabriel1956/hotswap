@@ -514,7 +514,7 @@ const fresh = new Set<string>();
 let busy = new Map<number, string>();
 const starting = new Map<string, number>();
 // Parada à mão (botões Parar do cabeçalho): envs parando agora (e se já passou para o SIGKILL), e os terminais parados
-// de propósito, que não contam como queda. O próximo start (Subir ou troca) tira a marca.
+// de propósito (pelo Parar ou pela troca), que não contam como queda. O próximo start (Subir ou troca) tira a marca.
 const halting = new Map<string, { forcing: boolean; tabs: Tab[] }>();
 const halted = new Set<number>();
 let current: { project: string; wt: Worktree } | null = null;
@@ -1058,6 +1058,8 @@ function activate(project: string, wt: Worktree, created: boolean) {
       clearInterval(tick);
       stopping.delete(project);
       for (const p of state.panes) busy.delete(p.ptyId);
+      // Parada pela troca é de propósito, como o Parar: com a API já parada à mão, o Front parado aqui não é queda (SEM FRONT).
+      for (const p of state.panes) halted.add(p.ptyId);
       wasUp.delete(key(project, prev));
       // O fim da troca também tem fechamento: quanto a anterior levou para sair, e se foi à força.
       if (hadProcs) {
