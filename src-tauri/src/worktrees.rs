@@ -353,13 +353,7 @@ fn parse_status(out: &str) -> GitStatus {
 /// git do terminal.
 #[tauri::command]
 pub async fn git_status(paths: Vec<String>) -> Vec<Option<GitStatus>> {
-    std::thread::scope(|s| {
-        let runs: Vec<_> = paths
-            .iter()
-            .map(|p| s.spawn(move || git(p, &["--no-optional-locks", "status", "--porcelain=v2", "--branch"]).ok().map(|o| parse_status(&o))))
-            .collect();
-        runs.into_iter().map(|r| r.join().ok().flatten()).collect()
-    })
+    crate::par_map(&paths, |p| git(p, &["--no-optional-locks", "status", "--porcelain=v2", "--branch"]).ok().map(|o| parse_status(&o))).into_iter().map(Option::flatten).collect()
 }
 
 /// A saída do `git pull` diz se avançou: "Already up to date." quando não (antes do git 2.17, "Already up-to-date.").
@@ -389,10 +383,7 @@ fn pull_one(path: &str) -> Result<bool, String> {
 /// "Atualizar (pull)": um pull por lado da worktree, em paralelo (cada um espera a rede), na ordem pedida.
 #[tauri::command]
 pub async fn pull_worktree(paths: Vec<String>) -> Vec<Result<bool, String>> {
-    std::thread::scope(|s| {
-        let runs: Vec<_> = paths.iter().map(|p| s.spawn(move || pull_one(p))).collect();
-        runs.into_iter().map(|r| r.join().unwrap_or_else(|_| Err(crate::tr!("o git pull não terminou", "git pull didn't finish")))).collect()
-    })
+    crate::par_map(&paths, |p| pull_one(p)).into_iter().map(|r| r.unwrap_or_else(|| Err(crate::tr!("o git pull não terminou", "git pull didn't finish")))).collect()
 }
 
 fn side(w: &Option<Wt>, cfg: &SideCfg) -> Option<SideView> {
@@ -1294,10 +1285,21 @@ pub async fn clone_github_repo(full_name: String, parent: String) -> Result<Stri
 mod tests {
     use super::*;
 
+    /// Pasta temporária vazia, uma por teste (o pid separa execuções paralelas).
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("hotswap-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn sh(dir: &Path, cmd: &str) {
+        assert!(Command::new("sh").arg("-c").arg(cmd).current_dir(dir).status().unwrap().success(), "{cmd}");
+    }
+
     #[test]
     fn set_parallel_keeps_the_rest() {
-        let tmp = std::env::temp_dir().join(format!("hotswap-parallel-{}", std::process::id()));
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = scratch("parallel");
         let config = tmp.join("config.json").to_str().unwrap().to_string();
         let raw = r#"{"editor":"z.desktop","projects":[{"name":"a","api":{"repo":"x"},"front":{"repo":"y"}},{"name":"b","api":{"repo":"x"},"front":{"repo":"y"}}]}"#;
         std::fs::write(&config, raw).unwrap();
@@ -1354,9 +1356,7 @@ mod tests {
 
     #[test]
     fn install_only_when_node_modules_is_missing() {
-        let dir = std::env::temp_dir().join(format!("hotswap-deps-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = scratch("deps");
         let path = dir.to_string_lossy().to_string();
 
         let install = |start: &str| missing_deps_install(path.clone(), start.into());
@@ -1416,13 +1416,10 @@ mod tests {
 
     #[test]
     fn creates_worktrees_and_lists_branches() {
-        let tmp = std::env::temp_dir().join(format!("hotswap-test-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let sh = |cmd: &str| assert!(Command::new("sh").arg("-c").arg(cmd).current_dir(&tmp).status().unwrap().success(), "{cmd}");
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = scratch("test");
         let git_id = "-c user.name=t -c user.email=t@t";
-        sh(&format!("git init -q -b main normal && git -C normal {git_id} commit -q --allow-empty -m init && git -C normal branch old"));
-        sh("mkdir bare && git clone -q --bare normal bare/.bare && echo 'gitdir: ./.bare' > bare/.git");
+        sh(&tmp, &format!("git init -q -b main normal && git -C normal {git_id} commit -q --allow-empty -m init && git -C normal branch old"));
+        sh(&tmp, "mkdir bare && git clone -q --bare normal bare/.bare && echo 'gitdir: ./.bare' > bare/.git");
         let path = |d: &str| tmp.join(d).to_str().unwrap().to_string();
 
         // Pasta padrão: bare → dentro do repo; normal → <repo>.worktrees.
@@ -1451,7 +1448,7 @@ mod tests {
         );
 
         // Branch de PR: só no origin; o bare clonado fora do app não rastreia as remotas. Buscada, é reaproveitada.
-        sh(&format!("git -C normal {git_id} commit -q --allow-empty -m pr && git -C normal branch pr/z && git -C normal reset -q --hard HEAD~1"));
+        sh(&tmp, &format!("git -C normal {git_id} commit -q --allow-empty -m pr && git -C normal branch pr/z && git -C normal reset -q --hard HEAD~1"));
         fetch_branch(&path("bare"), "pr/z").unwrap();
         add_one(&path("bare"), &path("bare"), "pr/z", "").unwrap();
         assert_eq!(git(&path("bare/pr/z"), &["log", "-1", "--format=%s"]).unwrap(), "pr");
@@ -1465,13 +1462,10 @@ mod tests {
 
     #[test]
     fn edits_worktree_all_or_nothing() {
-        let tmp = std::env::temp_dir().join(format!("hotswap-edit-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let sh = |cmd: &str| assert!(Command::new("sh").arg("-c").arg(cmd).current_dir(&tmp).status().unwrap().success(), "{cmd}");
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = scratch("edit");
         for r in ["api", "web"] {
-            sh(&format!("git init -q -b main src-{r} && git -C src-{r} -c user.name=t -c user.email=t@t commit -q --allow-empty -m init"));
-            sh(&format!("mkdir {r} && git clone -q --bare src-{r} {r}/.bare && echo 'gitdir: ./.bare' > {r}/.git"));
+            sh(&tmp, &format!("git init -q -b main src-{r} && git -C src-{r} -c user.name=t -c user.email=t@t commit -q --allow-empty -m init"));
+            sh(&tmp, &format!("mkdir {r} && git clone -q --bare src-{r} {r}/.bare && echo 'gitdir: ./.bare' > {r}/.git"));
         }
         let path = |d: &str| tmp.join(d).to_str().unwrap().to_string();
         add_one(&path("api"), &path("api"), "feat/x", "main").unwrap();
@@ -1542,13 +1536,10 @@ mod tests {
 
     #[test]
     fn removes_worktree_without_force() {
-        let tmp = std::env::temp_dir().join(format!("hotswap-rm-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let sh = |cmd: &str| assert!(Command::new("sh").arg("-c").arg(cmd).current_dir(&tmp).status().unwrap().success(), "{cmd}");
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = scratch("rm");
         for r in ["api", "web"] {
-            sh(&format!("git init -q -b main src-{r} && git -C src-{r} -c user.name=t -c user.email=t@t commit -q --allow-empty -m init"));
-            sh(&format!("mkdir {r} && git clone -q --bare src-{r} {r}/.bare && echo 'gitdir: ./.bare' > {r}/.git"));
+            sh(&tmp, &format!("git init -q -b main src-{r} && git -C src-{r} -c user.name=t -c user.email=t@t commit -q --allow-empty -m init"));
+            sh(&tmp, &format!("mkdir {r} && git clone -q --bare src-{r} {r}/.bare && echo 'gitdir: ./.bare' > {r}/.git"));
         }
         let path = |d: &str| tmp.join(d).to_str().unwrap().to_string();
         add_one(&path("api"), &path("api"), "feat/x", "main").unwrap();
@@ -1572,7 +1563,7 @@ mod tests {
         std::fs::remove_file(tmp.join("web/feat/x/novo.txt")).unwrap();
 
         // Remove os dois; a branch do Front tem commit fora da main: fica, com aviso, e o resto segue.
-        sh("git -C web/feat/x -c user.name=t -c user.email=t@t commit -q --allow-empty -m wip");
+        sh(&tmp, "git -C web/feat/x -c user.name=t -c user.email=t@t commit -q --allow-empty -m wip");
         let notes = remove_worktree_in(&config, &req).unwrap();
         assert_eq!(notes.len(), 1);
         assert!(notes[0].starts_with("Front: a branch feat/x não está mergeada"), "{}", notes[0]);
@@ -1592,28 +1583,25 @@ mod tests {
 
     #[test]
     fn pulls_fast_forward_only() {
-        let tmp = std::env::temp_dir().join(format!("hotswap-pull-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let sh = |cmd: &str| assert!(Command::new("sh").arg("-c").arg(cmd).current_dir(&tmp).status().unwrap().success(), "{cmd}");
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = scratch("pull");
         let git_id = "-c user.name=t -c user.email=t@t";
-        sh(&format!("git init -q -b main up && git -C up {git_id} commit -q --allow-empty -m init && git clone -q up down"));
+        sh(&tmp, &format!("git init -q -b main up && git -C up {git_id} commit -q --allow-empty -m init && git clone -q up down"));
         let path = |d: &str| tmp.join(d).to_str().unwrap().to_string();
         let pull = |d: &str| tauri::async_runtime::block_on(pull_worktree(vec![path(d)])).remove(0);
 
         assert_eq!(pull("down"), Ok(false), "já estava em dia");
-        sh(&format!("git -C up {git_id} commit -q --allow-empty -m novo"));
+        sh(&tmp, &format!("git -C up {git_id} commit -q --allow-empty -m novo"));
         assert_eq!(pull("down"), Ok(true), "avançou");
         assert_eq!(git(&path("down"), &["log", "-1", "--format=%s"]).unwrap(), "novo");
 
         // Divergiu: commit dos dois lados. Não faz merge; o erro cru volta para o front resumir.
-        sh(&format!("git -C up {git_id} commit -q --allow-empty -m remoto && git -C down {git_id} commit -q --allow-empty -m local"));
+        sh(&tmp, &format!("git -C up {git_id} commit -q --allow-empty -m remoto && git -C down {git_id} commit -q --allow-empty -m local"));
         let err = pull("down").unwrap_err();
         assert!(err.contains("Not possible to fast-forward"), "{err}");
         assert_eq!(git(&path("down"), &["log", "-1", "--format=%s"]).unwrap(), "local", "nada mudou");
 
         // Branch sem upstream.
-        sh("git -C down checkout -q -b solta");
+        sh(&tmp, "git -C down checkout -q -b solta");
         assert!(pull("down").unwrap_err().contains("no tracking information"));
         assert!(pulled("Updating abc..def\nFast-forward\n a.ts | 2 +-\n"));
         assert!(!pulled("Already up to date.\n"));
@@ -1622,12 +1610,9 @@ mod tests {
 
     #[test]
     fn bare_layout_from_clone() {
-        let tmp = std::env::temp_dir().join(format!("hotswap-gh-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let sh = |cmd: &str| assert!(Command::new("sh").arg("-c").arg(cmd).current_dir(&tmp).status().unwrap().success(), "{cmd}");
-        std::fs::create_dir_all(&tmp).unwrap();
-        sh("git init -q -b main origin && git -C origin -c user.name=t -c user.email=t@t commit -q --allow-empty -m init && git -C origin branch dev");
-        sh("git clone -q --bare origin dest/.bare");
+        let tmp = scratch("gh");
+        sh(&tmp, "git init -q -b main origin && git -C origin -c user.name=t -c user.email=t@t commit -q --allow-empty -m init && git -C origin branch dev");
+        sh(&tmp, "git clone -q --bare origin dest/.bare");
 
         bare_layout(&tmp.join("dest")).unwrap();
         let dest = tmp.join("dest").to_str().unwrap().to_string();
@@ -1656,9 +1641,7 @@ mod tests {
 
     #[test]
     fn adds_project_keeping_existing_config() {
-        let tmp = std::env::temp_dir().join(format!("hotswap-cfg-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = scratch("cfg");
         assert!(Command::new("git").args(["init", "-q"]).arg(tmp.join("repo")).status().unwrap().success());
         let repo = tmp.join("repo").to_str().unwrap().to_string();
         let side = |start: &str| NewSide { repo: repo.clone(), start_command: start.into(), setup_command: "".into() };
