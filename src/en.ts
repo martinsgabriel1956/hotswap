@@ -29,7 +29,6 @@ export const EN: Record<string, string> = {
   "Editor não abriu": "Editor didn't open",
   "{0}, {1}: pare a worktree antes de atualizar": "{0}, {1}: stop the worktree before updating",
   "git pull --ff-only em {0}": "git pull --ff-only in {0}",
-  "Atualizar (pull): indisponível; {0}": "Update (pull): unavailable; {0}",
   "Atualizar (pull)": "Update (pull)",
   "Atualizando {0}…": "Updating {0}…",
   "Atualizada: {0}": "Updated: {0}",

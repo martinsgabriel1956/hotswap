@@ -10,7 +10,7 @@ import "@xterm/xterm/css/xterm.css";
 import "@fontsource/barlow-semi-condensed/latin-500.css";
 import "@fontsource/barlow-semi-condensed/latin-600.css";
 import "@fontsource/barlow-semi-condensed/latin-700.css";
-import "./styles.scss";
+import "./styles.css";
 import { asPm, isPm, joinStart, PREFIX, rewrite, splitStart, switchPm, type Pm } from "./pm";
 import { endCut, middleCut, nameTail } from "./branch";
 import { matchAt, matchItem, projectTerms } from "./match";
@@ -220,48 +220,32 @@ moreMenu.addEventListener("toggle", (e) => {
       return b;
     }),
     ...cededActions().map((src) => {
-      const keys = src.getAttribute("aria-keyshortcuts")?.replace("Control", "Ctrl");
       // A ação direto, não src.click(): o original quebrou para fora da faixa e está inert.
       const act = () => (src === urlEl ? invoke("open_url", { url: urlEl.href }) : toggleRun(src === haltAllEl));
-      const b = el(
-        "button",
-        { type: "button", className: "more-item", title: src.title, onclick: () => (moreMenu.hidePopover(), act()) },
-        el("span", { textContent: src === urlEl ? tr("Abrir {0} no navegador", urlEl.textContent) : src.dataset.label! }),
-        ...(keys ? [el("span", { className: "keys", textContent: keys })] : []),
-      );
+      const b = menuItem(moreMenu, src === urlEl ? tr("Abrir {0} no navegador", urlEl.textContent) : src.dataset.label!, act, {
+        title: src.title,
+        keys: src.getAttribute("aria-keyshortcuts")?.replace(/Control/g, "Ctrl"),
+        disabled: !!src.getAttribute("aria-disabled"),
+      });
       if (src.dataset.ends) b.dataset.ends = src.dataset.ends;
-      if (src.getAttribute("aria-disabled")) b.setAttribute("aria-disabled", "true");
       return b;
     }),
     // Reiniciar a aba aberta: só no ⋯ (o encaixe do cabeçalho é delicado) e só no lado com start. Fora de hora (nada
     // rodando, troca ou parada em andamento) fica aria-disabled; o clique diz por quê no cabeçalho, como o atalho.
     ...(restartPane
       ? [
-          el(
-            "button",
-            {
-              type: "button",
-              className: "more-item",
-              title: tr("Parar {0} e subir de novo (Ctrl+Shift+R; com Alt, os dois lados)", TAB_LABEL[tab]),
-              ariaKeyShortcuts: "Control+Shift+R",
-              ariaDisabled: stopping.has(current!.project) || halting.has(ck!) || !(starting.has(ck!) || busy.has(restartPane.ptyId)) ? "true" : null,
-              onclick: () => (moreMenu.hidePopover(), toggleRun(false, "restart"))
-            },
-            el("span", { textContent: tr("Reiniciar {0}", TAB_LABEL[tab]) }),
-            el("span", { className: "keys", textContent: "Ctrl+Shift+R" })
-          )
+          menuItem(moreMenu, tr("Reiniciar {0}", TAB_LABEL[tab]), () => toggleRun(false, "restart"), {
+            title: tr("Parar {0} e subir de novo (Ctrl+Shift+R; com Alt, os dois lados)", TAB_LABEL[tab]),
+            keys: "Ctrl+Shift+R",
+            disabled: stopping.has(current!.project) || halting.has(ck!) || !(starting.has(ck!) || busy.has(restartPane.ptyId)),
+          }),
         ]
       : []),
     ...(current
       ? [
           pullItem(current.project, current.wt),
-          el("button", { type: "button", className: "more-item", title: `gh pr view ${tabBranch(current.wt)} --web`, onclick: () => (moreMenu.hidePopover(), viewPr()) }, el("span", { textContent: tr("Ver PR") })),
-          el(
-            "button",
-            { type: "button", className: "more-item", title: current.wt[editorSide(current.wt)]!.path, ariaKeyShortcuts: "Control+Shift+O", onclick: () => (moreMenu.hidePopover(), openInEditor()) },
-            el("span", { textContent: tr("Abrir no editor") }),
-            el("span", { className: "keys", textContent: "Ctrl+Shift+O" }),
-          ),
+          menuItem(moreMenu, tr("Ver PR"), () => viewPr(), { title: `gh pr view ${tabBranch(current.wt)} --web` }),
+          menuItem(moreMenu, tr("Abrir no editor"), () => openInEditor(), { title: current.wt[editorSide(current.wt)]!.path, keys: "Ctrl+Shift+O" }),
           el("button", { type: "button", className: "more-item", title: tr("Escolher o editor (fica para o Ctrl+Shift+O)"), onclick: openWith }, el("span", { textContent: tr("Abrir com…") })),
         ]
       : []),
@@ -322,21 +306,8 @@ function pullBlocked(project: string, wt: Worktree) {
 
 /** "Atualizar (pull)" no ⋯, para a worktree em serviço. Indisponível, fica aria-disabled com o motivo, e o clique o diz. */
 function pullItem(project: string, wt: Worktree, menu = moreMenu) {
-  const blocked = pullBlocked(project, wt);
   const paths = TABS.flatMap(t => (wt[t] ? [wt[t]!.path] : []));
-  const b = el(
-    "button",
-    {
-      type: "button",
-      className: "more-item",
-      title: blocked ?? tr("git pull --ff-only em {0}", paths.join(tr(" e "))),
-      ariaLabel: blocked ? tr("Atualizar (pull): indisponível; {0}", blocked) : tr("Atualizar (pull)"),
-      onclick: () => (menu.hidePopover(), pullWorktree(project, wt))
-    },
-    el("span", { textContent: tr("Atualizar (pull)") })
-  );
-  if (blocked) b.setAttribute("aria-disabled", "true");
-  return b;
+  return menuItem(menu, tr("Atualizar (pull)"), () => pullWorktree(project, wt), { title: tr("git pull --ff-only em {0}", paths.join(tr(" e "))), blocked: pullBlocked(project, wt) });
 }
 
 /** `git pull --ff-only` em cada lado, em paralelo (backend). "Atualizada: feat/x" ou "Já estava em dia" como recado de
@@ -418,14 +389,12 @@ async function renderEditors() {
     headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: tr("Não consegui listar os editores") }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) }));
   }
   if (!editorsMode) return;
-  const pick = (id: string | null) => () => {
-    moreMenu.hidePopover();
+  const pick = (id: string | null) => () =>
     invoke("set_editor", { id }).then(() => openInEditor(), (err) => headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: tr("Não gravei o editor") }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) })));
-  };
-  const keys = (on: boolean) => (on ? [el("span", { className: "keys", textContent: "Ctrl+Shift+O" })] : []);
-  const items = list.editors.map((e) => el("button", { type: "button", className: "more-item", title: e.id, onclick: pick(e.id) }, el("span", { textContent: e.name }), ...keys(e.id === list.chosen)));
-  if (list.command) items.push(el("button", { type: "button", className: "more-item", title: tr("editorCommand do config"), onclick: pick(null) }, el("span", { className: "mono", textContent: list.command }), ...keys(!list.chosen)));
-  if (!items.length) items.push(el("button", { type: "button", className: "more-item", title: tr("Defina editorCommand no config"), onclick: () => (moreMenu.hidePopover(), invoke("open_config")) }, el("span", { textContent: tr("Nenhum editor encontrado · Abrir config") })));
+  const keys = (on: boolean) => (on ? "Ctrl+Shift+O" : undefined);
+  const items = list.editors.map((e) => menuItem(moreMenu, e.name, pick(e.id), { title: e.id, keys: keys(e.id === list.chosen) }));
+  if (list.command) items.push(menuItem(moreMenu, el("span", { className: "mono", textContent: list.command }), pick(null), { title: tr("editorCommand do config"), keys: keys(!list.chosen) }));
+  if (!items.length) items.push(menuItem(moreMenu, tr("Nenhum editor encontrado · Abrir config"), () => invoke("open_config"), { title: tr("Defina editorCommand no config") }));
   moreMenu.replaceChildren(el("p", { className: "more-head", textContent: tr("Abrir com") }), ...items);
   (moreMenu.querySelector<HTMLElement>("button:has(.keys)") ?? moreMenu.querySelector<HTMLElement>("button"))?.focus();
 }
@@ -1642,25 +1611,28 @@ function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
 const rowMenu = $("#row-menu");
 let rowMenuFor: { project: string; wt: Worktree } | null = null;
 
-function rowMenuItem(label: string, act: () => void, opts: { title?: string; keys?: string; blocked?: string | null } = {}) {
-  const b = el(
+/** Item do ⋯ e do menu da linha. `blocked`: aria-disabled com o motivo, que o clique diz no cabeçalho em vez de agir;
+ *  `disabled`: só aria-disabled, a própria ação diz por quê (como o atalho). */
+function menuItem(menu: HTMLElement, label: string | HTMLElement, act: () => unknown, opts: { title?: string; keys?: string; blocked?: string | null; disabled?: boolean } = {}) {
+  const text = typeof label === "string" ? el("span", { textContent: label }) : label;
+  return el(
     "button",
     {
       type: "button",
       className: "more-item",
       title: opts.blocked ?? opts.title ?? "",
-      ariaLabel: opts.blocked ? tr("{0}: indisponível; {1}", label, opts.blocked) : null,
+      ariaLabel: opts.blocked ? tr("{0}: indisponível; {1}", text.textContent, opts.blocked) : null,
+      ariaKeyShortcuts: opts.keys?.replace(/Ctrl/g, "Control") ?? null,
+      ariaDisabled: opts.blocked || opts.disabled ? "true" : null,
       onclick: () => {
-        rowMenu.hidePopover();
-        if (opts.blocked) headerNote(false, rowMenuFor?.project ?? null, opts.blocked);
+        menu.hidePopover();
+        if (opts.blocked) headerNote(false, (menu === rowMenu ? rowMenuFor : current)?.project ?? null, opts.blocked);
         else act();
       },
     },
-    el("span", { textContent: label }),
+    text,
     ...(opts.keys ? [el("span", { className: "keys", textContent: opts.keys })] : []),
   );
-  if (opts.blocked) b.setAttribute("aria-disabled", "true");
-  return b;
 }
 
 function openRowMenu(project: string, wt: Worktree, x: number, y: number) {
@@ -1672,12 +1644,12 @@ function openRowMenu(project: string, wt: Worktree, x: number, y: number) {
   rowMenu.setAttribute("aria-label", tr("Ações de {0}", spokenLabel(wt.label)));
   rowMenu.replaceChildren(
     el("p", { className: "more-head", textContent: wt.label }),
-    ...(isCurrent ? [] : [rowMenuItem(tr("Abrir"), () => select(project, wt), { keys: "Enter" })]),
-    rowMenuItem(tr("Abrir no editor"), () => openInEditor(target), { title: wt[editorSide(wt)]!.path, keys: isCurrent ? "Ctrl+Shift+O" : undefined }),
-    rowMenuItem(tr("Ver PR"), () => viewPr(target), { title: `gh pr view ${tabBranch(wt)} --web` }),
+    ...(isCurrent ? [] : [menuItem(rowMenu, tr("Abrir"), () => select(project, wt), { keys: "Enter" })]),
+    menuItem(rowMenu, tr("Abrir no editor"), () => openInEditor(target), { title: wt[editorSide(wt)]!.path, keys: isCurrent ? "Ctrl+Shift+O" : undefined }),
+    menuItem(rowMenu, tr("Ver PR"), () => viewPr(target), { title: `gh pr view ${tabBranch(wt)} --web` }),
     pullItem(project, wt, rowMenu),
-    rowMenuItem(tr("Editar…"), () => openEditDialog(project, wt), { blocked: blocked(tr("editar")) }),
-    rowMenuItem(tr("Remover…"), () => openRemoveDialog(project, wt), { blocked: blocked(tr("remover")) }),
+    menuItem(rowMenu, tr("Editar…"), () => openEditDialog(project, wt), { blocked: blocked(tr("editar")) }),
+    menuItem(rowMenu, tr("Remover…"), () => openRemoveDialog(project, wt), { blocked: blocked(tr("remover")) }),
   );
   rowMenu.showPopover();
   // Dentro da janela: abre para a esquerda ou para cima quando não cabe.
@@ -1989,7 +1961,7 @@ const BRANCH_FLOOR = 160;
  *  Com 48px, a 480 ficava "INTERNO /" inteiro ao lado de "fe…leilao". */
 const BRANCH_MIN = 112;
 
-/** A faixa é CSS (#flow em styles.scss): o destino tem um piso (projeto, a branch até BRANCH_FLOOR e a palheta) e, acima
+/** A faixa é CSS (#flow em styles.css): o destino tem um piso (projeto, a branch até BRANCH_FLOOR e a palheta) e, acima
  *  dele, os acessórios vêm antes do resto da branch. O que não cabe quebra para uma segunda linha do #flow, fora da
  *  faixa, de trás para a frente: o recado (que só fica se a branch couber inteira), os outros projetos, "Parar tudo",
  *  "Parar API" e por último a porta. Antes,

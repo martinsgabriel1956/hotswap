@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PALETTES, TERM_COLORS } from "./palettes.ts";
 
-// Os contrastes do DESIGN.md, em toda paleta, de noite e de dia, lidos do próprio styles.scss.
-const css = readFileSync(new URL("styles.scss", import.meta.url), "utf8");
+// Os contrastes do DESIGN.md, em toda paleta, de noite e de dia, lidos do próprio styles.css.
+const css = readFileSync(new URL("styles.css", import.meta.url), "utf8");
 const block = (selector: string) => {
   const at = css.indexOf(`${selector} {`);
   assert.ok(at >= 0, `sem o bloco ${selector}`);
