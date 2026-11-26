@@ -10,7 +10,7 @@ If you work on several branches at once, switching usually means opening termina
 
 It pairs the API and front worktrees by branch name and keeps **one worktree running per project**. When you switch, it sends Ctrl+C to the old pair, waits until every process in the group has exited (killing them after a timeout), and only then starts the new pair. Terminal multiplexers and editor terminals don't know about the pairing or this lifecycle.
 
-> The interface is in Brazilian Portuguese.
+> The interface is in English and Brazilian Portuguese: it follows the system language, and you can change it in the settings popover.
 
 ## Features
 
@@ -22,7 +22,7 @@ It pairs the API and front worktrees by branch name and keeps **one worktree run
 - **Projects from the UI.** Point to local folders, or clone from GitHub with `gh` into a bare-repo layout.
 - **Keyboard first.** A command palette (`Ctrl+Shift+K`) and a shortcut for every action.
 - **Lives in the tray.** Closing the window keeps the dev servers running, and the tray menu switches worktrees, stops or starts the current one and opens the palette.
-- **Tells you about new versions.** It checks GitHub for a newer release and links to it; installing stays manual.
+- **Updates itself.** It checks GitHub for a newer release and installs it from the app (the .deb and .rpm ask for your password). The AUR package updates through `makepkg`.
 - **Looks how you like.** System, light or dark theme, and a window opacity slider, in the settings popover at the bottom of the sidebar.
 
 ## Installation

@@ -194,7 +194,7 @@ fn installed_editors() -> Vec<Editor> {
 #[cfg(target_os = "linux")]
 fn launch_desktop(id: &str, path: &str) -> Result<(), String> {
     use gio::prelude::*;
-    let app = gio::DesktopAppInfo::new(id).ok_or(format!("{id}: não está mais instalado"))?;
+    let app = gio::DesktopAppInfo::new(id).ok_or(crate::tr!("{id}: não está mais instalado", "{id}: no longer installed"))?;
     // ponytail: o gio não deixa escolher a pasta, então no AppImage o editor nasce dentro da imagem; trocar por spawn se incomodar.
     let ctx = gio::AppLaunchContext::new();
     for (key, value) in crate::host_env::overrides() {
@@ -208,7 +208,7 @@ fn launch_desktop(id: &str, path: &str) -> Result<(), String> {
 
 #[cfg(not(target_os = "linux"))]
 fn launch_desktop(id: &str, _path: &str) -> Result<(), String> {
-    Err(format!("{id}: não está instalado"))
+    Err(crate::tr!("{id}: não está instalado", "{id}: not installed"))
 }
 
 /// Grava a escolha do "Abrir com…" (None: volta ao `editorCommand`) sem mexer no resto do config.
@@ -251,7 +251,7 @@ pub fn open_in_editor(path: String) -> Result<bool, String> {
         cmd
     };
     let mut child = cmd.args(args).spawn().map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => format!("{program}: não encontrado"),
+        std::io::ErrorKind::NotFound => crate::tr!("{program}: não encontrado", "{program}: not found"),
         _ => format!("{program}: {e}"),
     })?;
     // Recolhe o processo quando ele sair, senão fica um zumbi por abertura.
@@ -322,7 +322,7 @@ fn git_worktrees(repo: &str) -> Result<Vec<Wt>, String> {
 pub fn list_worktrees(repo: String) -> Result<Vec<Wt>, String> {
     let repo = expand(repo.trim()).trim_end_matches('/').to_string();
     if repo.is_empty() {
-        return Err("Escolha a pasta do repositório.".into());
+        return Err(crate::tr!("Escolha a pasta do repositório.", "Choose the repository folder."));
     }
     git_worktrees(&repo)
 }
@@ -399,7 +399,7 @@ fn pull_one(path: &str) -> Result<bool, String> {
 pub async fn pull_worktree(paths: Vec<String>) -> Vec<Result<bool, String>> {
     std::thread::scope(|s| {
         let runs: Vec<_> = paths.iter().map(|p| s.spawn(move || pull_one(p))).collect();
-        runs.into_iter().map(|r| r.join().unwrap_or_else(|_| Err("o git pull não terminou".into()))).collect()
+        runs.into_iter().map(|r| r.join().unwrap_or_else(|_| Err(crate::tr!("o git pull não terminou", "git pull didn't finish")))).collect()
     })
 }
 
@@ -431,8 +431,8 @@ fn view(p: &ProjectCfg, pairs: Vec<(Option<Wt>, Option<Wt>)>) -> Vec<WorktreeVie
 
 fn read_config() -> Result<Config, String> {
     let path = config_path();
-    let raw = std::fs::read_to_string(&path).map_err(|e| format!("Não consegui ler {path}: {e}"))?;
-    serde_json::from_str(&raw).map_err(|e| format!("{path} inválido: {e}"))
+    let raw = std::fs::read_to_string(&path).map_err(|e| crate::tr!("Não consegui ler {path}: {e}", "Couldn't read {path}: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| crate::tr!("{path} inválido: {e}", "Invalid {path}: {e}"))
 }
 
 #[tauri::command]
@@ -514,7 +514,7 @@ fn side_defaults(side: &SideCfg, base_branch: &Option<String>) -> Result<SideDef
 #[tauri::command]
 pub async fn worktree_defaults(project: String) -> Result<WorktreeDefaults, String> {
     let cfg = read_config()?;
-    let p = cfg.projects.iter().find(|p| p.name == project).ok_or("projeto não encontrado")?;
+    let p = cfg.projects.iter().find(|p| p.name == project).ok_or(crate::tr!("projeto não encontrado", "project not found"))?;
     Ok(WorktreeDefaults { api: side_defaults(&p.api, &p.base_branch), front: side_defaults(&p.front, &p.base_branch) })
 }
 
@@ -539,10 +539,10 @@ fn add_one(repo: &str, dir: &str, branch: &str, base: &str) -> Result<bool, Stri
     git(repo, &["check-ref-format", "--branch", branch])?;
     let dir = expand(dir.trim());
     if !Path::new(&dir).is_absolute() {
-        return Err(format!("diretório precisa ser um caminho absoluto: {dir}"));
+        return Err(crate::tr!("diretório precisa ser um caminho absoluto: {dir}", "directory must be an absolute path: {dir}"));
     }
     let path = Path::new(&dir).join(branch);
-    let path = path.to_str().ok_or("caminho inválido")?;
+    let path = path.to_str().ok_or(crate::tr!("caminho inválido", "invalid path"))?;
     let has = |r: &str| git(repo, &["rev-parse", "--verify", "--quiet", r]).is_ok();
     if has(&format!("refs/heads/{branch}")) {
         git(repo, &["worktree", "add", path, branch])?;
@@ -554,7 +554,7 @@ fn add_one(repo: &str, dir: &str, branch: &str, base: &str) -> Result<bool, Stri
         Ok(true)
     } else {
         if base.is_empty() {
-            return Err("escolha a branch de origem".into());
+            return Err(crate::tr!("escolha a branch de origem", "choose the source branch"));
         }
         git(repo, &["worktree", "add", "-b", branch, path, base])?;
         Ok(true)
@@ -581,10 +581,10 @@ pub struct SideRequest {
 #[tauri::command]
 pub async fn add_worktree(project: String, branch: String, api: Option<SideRequest>, front: Option<SideRequest>) -> Result<(), FormError> {
     let cfg = read_config().map_err(FormError::general)?;
-    let p = cfg.projects.iter().find(|p| p.name == project).ok_or(FormError::general("Projeto não encontrado."))?;
+    let p = cfg.projects.iter().find(|p| p.name == project).ok_or(FormError::general(crate::tr!("Projeto não encontrado.", "Project not found.")))?;
     let branch = branch.trim();
     if branch.is_empty() {
-        return Err(FormError::general("Informe o nome da branch."));
+        return Err(FormError::general(crate::tr!("Informe o nome da branch.", "Enter the branch name.")));
     }
     if api.is_none() && front.is_none() {
         return Err(FormError::general("Marque API, Front ou os dois."));
@@ -705,32 +705,32 @@ fn undo(done: Vec<Undo>) {
 fn check_side(repo: &str, s: &EditSide) -> Result<Option<PathBuf>, String> {
     let new = s.new_branch.trim();
     if new.is_empty() {
-        return Err("Informe a branch.".into());
+        return Err(crate::tr!("Informe a branch.", "Enter the branch."));
     }
     let has = |b: &str| git(repo, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{b}")]).is_ok();
     if new != s.branch {
-        git(repo, &["check-ref-format", "--branch", new]).map_err(|_| "Nome de branch inválido.".to_string())?;
+        git(repo, &["check-ref-format", "--branch", new]).map_err(|_| crate::tr!("Nome de branch inválido.", "Invalid branch name."))?;
         if !has(&s.branch) {
-            return Err("Esta worktree está sem branch (HEAD destacado): não há o que renomear.".into());
+            return Err(crate::tr!("Esta worktree está sem branch (HEAD destacado): não há o que renomear.", "This worktree has no branch (detached HEAD): nothing to rename."));
         }
         if has(new) {
-            return Err(format!("Já existe a branch {new} neste repositório."));
+            return Err(crate::tr!("Já existe a branch {new} neste repositório.", "The branch {new} already exists in this repository."));
         }
     }
     let Some(dir) = &s.move_to else { return Ok(None) };
     let dir = expand(dir.trim());
     if !Path::new(&dir).is_absolute() {
-        return Err(format!("O diretório precisa ser um caminho absoluto: {dir}"));
+        return Err(crate::tr!("O diretório precisa ser um caminho absoluto: {dir}", "The directory must be an absolute path: {dir}"));
     }
     let dest = Path::new(&dir).join(new);
     if dest == Path::new(&s.path) {
         return Ok(None);
     }
     if dest.exists() {
-        return Err(format!("Já existe {}.", dest.display()));
+        return Err(crate::tr!("Já existe {}.", "{} already exists.", dest.display()));
     }
     if is_locked(repo, &s.path)? {
-        return Err("A worktree está travada (git worktree lock): o git não a move.".into());
+        return Err(crate::tr!("A worktree está travada (git worktree lock): o git não a move.", "The worktree is locked (git worktree lock): git won't move it."));
     }
     Ok(Some(dest))
 }
@@ -742,7 +742,7 @@ const KEYS: [&str; 2] = ["api", "front"];
 fn edit_worktree_in(config: &str, req: &EditRequest) -> Result<(), FormError> {
     let side_err = |key: &'static str| move |message: String| FormError { side: Some(key), message, created: vec![] };
     let cfg: Config = serde_json::from_str(&std::fs::read_to_string(config).map_err(|e| FormError::general(e.to_string()))?).map_err(|e| FormError::general(e.to_string()))?;
-    let p = cfg.projects.iter().find(|p| p.name == req.project).ok_or(FormError::general("Projeto não encontrado."))?;
+    let p = cfg.projects.iter().find(|p| p.name == req.project).ok_or(FormError::general(crate::tr!("Projeto não encontrado.", "Project not found.")))?;
     let sides = [(&p.api, &req.api), (&p.front, &req.front)];
 
     // 1. Valida tudo antes de mexer.
@@ -760,7 +760,7 @@ fn edit_worktree_in(config: &str, req: &EditRequest) -> Result<(), FormError> {
         (PairChange::Keep, _) => {}
         (PairChange::Unpair, None) => {
             if !p.manual_pairs.iter().any(|m| m.api == current(0) && m.front == current(1)) {
-                return Err(FormError::general("Só um par manual (nomes diferentes) pode ser desfeito."));
+                return Err(FormError::general(crate::tr!("Só um par manual (nomes diferentes) pode ser desfeito.", "Only a manual pair (different names) can be undone.")));
             }
         }
         (PairChange::With { branch }, Some(i)) => {
@@ -773,11 +773,11 @@ fn edit_worktree_in(config: &str, req: &EditRequest) -> Result<(), FormError> {
                 _ => false,
             };
             if !solo {
-                return Err(side_err(KEYS[i])(format!("{branch} não é mais uma worktree solo; releia as worktrees.")));
+                return Err(side_err(KEYS[i])(crate::tr!("{branch} não é mais uma worktree solo; releia as worktrees.", "{branch} is no longer a solo worktree; reread the worktrees.")));
             }
         }
         (PairChange::Create { .. }, Some(_)) => {}
-        _ => return Err(FormError::general("Mudança de par inválida para esta worktree.")),
+        _ => return Err(FormError::general(crate::tr!("Mudança de par inválida para esta worktree.", "Invalid pair change for this worktree."))),
     }
 
     // 2. Aplica, guardando como desfazer.
@@ -800,7 +800,7 @@ fn edit_worktree_in(config: &str, req: &EditRequest) -> Result<(), FormError> {
             if let Some(dest) = &dests[i] {
                 let dest = dest.to_string_lossy().to_string();
                 if let Some(parent) = Path::new(&dest).parent() {
-                    std::fs::create_dir_all(parent).map_err(|e| err(format!("Não consegui criar {}: {e}", parent.display())))?;
+                    std::fs::create_dir_all(parent).map_err(|e| err(crate::tr!("Não consegui criar {}: {e}", "Couldn't create {}: {e}", parent.display())))?;
                 }
                 git(&repo, &["worktree", "move", &s.path, &dest]).map_err(err)?;
                 done.push(Undo::Move { repo: repo.clone(), from: s.path.clone(), to: dest });
@@ -823,7 +823,7 @@ fn edit_worktree_in(config: &str, req: &EditRequest) -> Result<(), FormError> {
         let proj = json["projects"]
             .as_array_mut()
             .and_then(|ps| ps.iter_mut().find(|x| x["name"] == req.project.as_str()))
-            .ok_or(FormError::general("Projeto não encontrado no config."))?;
+            .ok_or(FormError::general(crate::tr!("Projeto não encontrado no config.", "Project not found in the config.")))?;
         for (i, (cfg_side, s)) in sides.iter().enumerate() {
             let Some(s) = s else { continue };
             let side = proj[KEYS[i]].as_object_mut().ok_or(FormError::general(format!("\"{}\" do projeto precisa ser um objeto.", KEYS[i])))?;
@@ -837,7 +837,7 @@ fn edit_worktree_in(config: &str, req: &EditRequest) -> Result<(), FormError> {
                 side.insert("branchCommands".into(), cmds.into());
             }
         }
-        let obj = proj.as_object_mut().ok_or(FormError::general("Projeto inválido no config."))?;
+        let obj = proj.as_object_mut().ok_or(FormError::general(crate::tr!("Projeto inválido no config.", "Invalid project in the config.")))?;
         let mut pairs = obj.remove("manualPairs").and_then(|v| v.as_array().cloned()).unwrap_or_default();
         // O par manual acompanha os nomes novos.
         for m in pairs.iter_mut() {
@@ -893,13 +893,13 @@ pub struct RemoveRequest {
 /// O que impede `git worktree remove` sem `--force`, dito antes de mexer em qualquer lado.
 fn check_remove(repo: &str, path: &str) -> Result<(), String> {
     if is_main(path)? {
-        return Err(format!("{path} é a pasta principal do repositório: o git não a remove."));
+        return Err(crate::tr!("{path} é a pasta principal do repositório: o git não a remove.", "{path} is the main folder of the repository: git won't remove it."));
     }
     if is_locked(repo, path)? {
-        return Err("A worktree está travada (git worktree lock): o git não a remove.".into());
+        return Err(crate::tr!("A worktree está travada (git worktree lock): o git não a remove.", "The worktree is locked (git worktree lock): git won't remove it."));
     }
     if !git(path, &["status", "--porcelain"])?.is_empty() {
-        return Err(format!("{path} tem mudanças não commitadas ou arquivos não rastreados: commite, guarde (git stash -u) ou apague antes de remover."));
+        return Err(crate::tr!("{path} tem mudanças não commitadas ou arquivos não rastreados: commite, guarde (git stash -u) ou apague antes de remover.", "{path} has uncommitted changes or untracked files: commit, stash (git stash -u) or delete them before removing."));
     }
     Ok(())
 }
@@ -931,7 +931,7 @@ fn forget_branches(proj: &mut serde_json::Value, removed: &[(usize, &str)]) {
 fn remove_worktree_in(config: &str, req: &RemoveRequest) -> Result<Vec<String>, FormError> {
     let side_err = |key: &'static str| move |message: String| FormError { side: Some(key), message, created: vec![] };
     let cfg: Config = serde_json::from_str(&std::fs::read_to_string(config).map_err(|e| FormError::general(e.to_string()))?).map_err(|e| FormError::general(e.to_string()))?;
-    let p = cfg.projects.iter().find(|p| p.name == req.project).ok_or(FormError::general("Projeto não encontrado."))?;
+    let p = cfg.projects.iter().find(|p| p.name == req.project).ok_or(FormError::general(crate::tr!("Projeto não encontrado.", "Project not found.")))?;
     let sides = [(expand(&p.api.repo), &req.api), (expand(&p.front.repo), &req.front)];
 
     // 1. Valida tudo antes de mexer.
@@ -969,9 +969,9 @@ fn remove_worktree_in(config: &str, req: &RemoveRequest) -> Result<Vec<String>, 
             if let Err(e) = git(repo, &["branch", "-d", b]) {
                 let side = if i == 0 { "API" } else { "Front" };
                 notes.push(if e.contains("not fully merged") {
-                    format!("{side}: a branch {b} não está mergeada e ficou (git branch -D {b} apaga)")
+                    crate::tr!("{side}: a branch {b} não está mergeada e ficou (git branch -D {b} apaga)", "{side}: the branch {b} isn't merged and was kept (git branch -D {b} deletes it)")
                 } else {
-                    format!("{side}: a branch {b} ficou: {e}")
+                    crate::tr!("{side}: a branch {b} ficou: {e}", "{side}: the branch {b} was kept: {e}")
                 });
             }
         }
@@ -990,7 +990,7 @@ fn remove_worktree_in(config: &str, req: &RemoveRequest) -> Result<Vec<String>, 
         None => Ok(notes),
         Some((i, e)) => Err(FormError {
             side: Some(KEYS[i]),
-            message: if done.is_empty() { e } else { format!("A API já foi removida; o Front falhou: {e}") },
+            message: if done.is_empty() { e } else { crate::tr!("A API já foi removida; o Front falhou: {e}", "The API was already removed; the Front failed: {e}") },
             created: done,
         }),
     }
@@ -1032,9 +1032,9 @@ fn side_json(key: &'static str, s: &NewSide) -> Result<serde_json::Value, FormEr
     let err = |message: String| FormError { side: Some(key), message, created: vec![] };
     let repo = expand(s.repo.trim()).trim_end_matches('/').to_string();
     if repo.is_empty() {
-        return Err(err("Escolha a pasta do repositório.".into()));
+        return Err(err(crate::tr!("Escolha a pasta do repositório.", "Choose the repository folder.")));
     }
-    git(&repo, &["rev-parse", "--git-dir"]).map_err(|_| err(format!("{repo} não é um repositório git.")))?;
+    git(&repo, &["rev-parse", "--git-dir"]).map_err(|_| err(crate::tr!("{repo} não é um repositório git.", "{repo} isn't a git repository.")))?;
     let mut side = serde_json::json!({ "repo": contract(&repo) });
     for (k, v) in [("startCommand", &s.start_command), ("setupCommand", &s.setup_command)] {
         if !v.trim().is_empty() {
@@ -1051,7 +1051,7 @@ fn add_project_to(path: &str, project: &NewProject) -> Result<(), FormError> {
     }
     let name = project.name.trim();
     if name.is_empty() {
-        return Err(general("Dê um nome ao projeto."));
+        return Err(general(crate::tr!("Dê um nome ao projeto.", "Give the project a name.")));
     }
     let mut cfg = read_config_json(path).map_err(general)?;
     let entry = serde_json::json!({
@@ -1067,7 +1067,7 @@ fn add_project_to(path: &str, project: &NewProject) -> Result<(), FormError> {
         .as_array_mut()
         .ok_or(general(format!("{path}: \"projects\" precisa ser uma lista.")))?;
     if projects.iter().any(|p| p["name"] == name) {
-        return Err(general(format!("Já existe um projeto chamado \"{name}\".")));
+        return Err(general(crate::tr!("Já existe um projeto chamado \"{name}\".", "A project named \"{name}\" already exists.")));
     }
     projects.push(entry);
     write_config_json(path, &cfg).map_err(general)
@@ -1077,15 +1077,15 @@ fn add_project_to(path: &str, project: &NewProject) -> Result<(), FormError> {
 fn read_config_json(path: &str) -> Result<serde_json::Value, String> {
     match std::fs::read_to_string(path) {
         // JSON quebrado: recusa em vez de sobrescrever o que o usuário escreveu.
-        Ok(raw) => serde_json::from_str(&raw).map_err(|e| format!("{path} tem JSON inválido; corrija o arquivo antes: {e}")),
+        Ok(raw) => serde_json::from_str(&raw).map_err(|e| crate::tr!("{path} tem JSON inválido; corrija o arquivo antes: {e}", "{path} has invalid JSON; fix the file first: {e}")),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(serde_json::json!({ "projects": [] })),
-        Err(e) => Err(format!("Não consegui ler {path}: {e}")),
+        Err(e) => Err(crate::tr!("Não consegui ler {path}: {e}", "Couldn't read {path}: {e}")),
     }
 }
 
 /// Escrita atômica: grava ao lado e renomeia, para nunca deixar o config pela metade.
 fn write_config_json(path: &str, cfg: &serde_json::Value) -> Result<(), String> {
-    let io = |e: std::io::Error| format!("Não consegui gravar o config: {e}");
+    let io = |e: std::io::Error| crate::tr!("Não consegui gravar o config: {e}", "Couldn't save the config: {e}");
     let path = Path::new(path);
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(io)?;
@@ -1138,7 +1138,7 @@ fn set_parallel_in(path: &str, project: &str, on: bool) -> Result<(), String> {
         .as_array_mut()
         .and_then(|ps| ps.iter_mut().find(|p| p["name"] == project))
         .and_then(|p| p.as_object_mut())
-        .ok_or(format!("Projeto {project} não está no config."))?;
+        .ok_or(crate::tr!("Projeto {project} não está no config.", "Project {project} isn't in the config."))?;
     // Desligado é a ausência do campo: o config de quem nunca ligou continua igual.
     if on {
         proj.insert("parallel".into(), true.into());
@@ -1167,13 +1167,13 @@ fn gh(args: &[&str]) -> Result<String, String> {
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
     let out = cmd.args(args).output().map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => "Instale o GitHub CLI (gh) para clonar do GitHub.".to_string(),
+        std::io::ErrorKind::NotFound => crate::tr!("Instale o GitHub CLI (gh) para clonar do GitHub.", "Install the GitHub CLI (gh) to clone from GitHub."),
         _ => e.to_string(),
     })?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
         if err.contains("gh auth login") {
-            return Err("Entre no GitHub pelo terminal com gh auth login.".into());
+            return Err(crate::tr!("Entre no GitHub pelo terminal com gh auth login.", "Sign in to GitHub in the terminal with gh auth login."));
         }
         return Err(err);
     }
@@ -1213,7 +1213,7 @@ fn gh_repo_of(url: &str) -> Option<String> {
 
 fn side_prs(side: &SideCfg) -> Result<serde_json::Value, String> {
     let url = git(&expand(&side.repo), &["remote", "get-url", "origin"])?;
-    let repo = gh_repo_of(&url).ok_or(format!("o origin não é um repositório do GitHub: {url}"))?;
+    let repo = gh_repo_of(&url).ok_or(crate::tr!("o origin não é um repositório do GitHub: {url}", "origin isn't a GitHub repository: {url}"))?;
     let out = gh(&["pr", "list", "--repo", &repo, "--limit", "100", "--json", "number,title,headRefName,author,isCrossRepository"])?;
     serde_json::from_str(&out).map_err(|e| e.to_string())
 }
@@ -1233,7 +1233,7 @@ fn no_pr(err: &str) -> bool {
 #[tauri::command]
 pub async fn open_pr(path: String, branch: String) -> Result<bool, String> {
     let url = git(&path, &["remote", "get-url", "origin"])?;
-    let repo = gh_repo_of(&url).ok_or(format!("o origin não é um repositório do GitHub: {url}"))?;
+    let repo = gh_repo_of(&url).ok_or(crate::tr!("o origin não é um repositório do GitHub: {url}", "origin isn't a GitHub repository: {url}"))?;
     match gh(&pr_view_args(&repo, &branch)) {
         Ok(_) => Ok(true),
         Err(e) if no_pr(&e) => Ok(false),
@@ -1251,7 +1251,7 @@ pub struct PullRequests {
 #[tauri::command]
 pub async fn pull_requests(project: String) -> Result<PullRequests, String> {
     let cfg = read_config()?;
-    let p = cfg.projects.iter().find(|p| p.name == project).ok_or("projeto não encontrado")?;
+    let p = cfg.projects.iter().find(|p| p.name == project).ok_or(crate::tr!("projeto não encontrado", "project not found"))?;
     // Em paralelo: cada gh leva cerca de 1 s.
     let (api, front) = std::thread::scope(|s| {
         let api = s.spawn(|| side_prs(&p.api));
@@ -1271,12 +1271,12 @@ fn valid_full_name(full: &str) -> bool {
 /// rastreadas (o `--bare` não configura) e a worktree da branch padrão em `<dest>/<branch>`.
 fn bare_layout(dest: &Path) -> Result<(), String> {
     std::fs::write(dest.join(".git"), "gitdir: ./.bare\n").map_err(|e| e.to_string())?;
-    let repo = dest.to_str().ok_or("caminho inválido")?;
+    let repo = dest.to_str().ok_or(crate::tr!("caminho inválido", "invalid path"))?;
     git(repo, &["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"])?;
     git(repo, &["fetch", "-q", "origin"])?;
     let branch = git(repo, &["symbolic-ref", "--short", "HEAD"])?;
     let path = dest.join(&branch);
-    git(repo, &["worktree", "add", path.to_str().ok_or("caminho inválido")?, &branch])?;
+    git(repo, &["worktree", "add", path.to_str().ok_or(crate::tr!("caminho inválido", "invalid path"))?, &branch])?;
     Ok(())
 }
 
@@ -1285,7 +1285,7 @@ fn bare_layout(dest: &Path) -> Result<(), String> {
 pub async fn clone_github_repo(full_name: String, parent: String) -> Result<String, String> {
     let full = full_name.trim();
     if !valid_full_name(full) {
-        return Err("Escolha um repositório da lista, no formato dono/repositório.".into());
+        return Err(crate::tr!("Escolha um repositório da lista, no formato dono/repositório.", "Pick a repository from the list, as owner/repository."));
     }
     let parent = expand(parent.trim());
     if !Path::new(&parent).is_absolute() {
@@ -1294,10 +1294,10 @@ pub async fn clone_github_repo(full_name: String, parent: String) -> Result<Stri
     let name = full.split_once('/').map(|(_, n)| n).unwrap_or(full);
     let dest = Path::new(&parent).join(name);
     if dest.exists() {
-        return Err(format!("Já existe {}; escolha outra pasta ou use Escolher… para apontar para ela.", dest.display()));
+        return Err(crate::tr!("Já existe {}; escolha outra pasta ou use Escolher… para apontar para ela.", "{} already exists; pick another folder or use Choose… to point to it.", dest.display()));
     }
     let bare = dest.join(".bare");
-    let result = gh(&["repo", "clone", full, bare.to_str().ok_or("caminho inválido")?, "--", "--bare", "-q"]).and_then(|_| bare_layout(&dest));
+    let result = gh(&["repo", "clone", full, bare.to_str().ok_or(crate::tr!("caminho inválido", "invalid path"))?, "--", "--bare", "-q"]).and_then(|_| bare_layout(&dest));
     if let Err(e) = result {
         // A pasta não existia antes deste clone: apaga o que ficou pela metade, para poder tentar de novo.
         let _ = std::fs::remove_dir_all(&dest);

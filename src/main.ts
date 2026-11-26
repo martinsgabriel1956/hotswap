@@ -22,6 +22,12 @@ import { deafSides, lateText, startEnd } from "./start";
 import { pullErrorLine, pullErrorSummary } from "./pull";
 import { isNewer } from "./update";
 import { envPrefix, fill, movesOwnPort, portMismatch, propose, templateError, type Ports } from "./parallel";
+import { lang, locale, translateDom, tr } from "./i18n.ts";
+
+// Antes de tudo: o HTML estático e o Rust no idioma escolhido (os textos de cima a baixo já saem por tr).
+document.documentElement.lang = lang === "en" ? "en" : "pt-BR";
+translateDom(document.body);
+invoke("set_lang", { lang });
 
 /** `startCommand`: o que sobe (o da branch, senão o do projeto); `projectStart`: o do projeto.
  *  `parallelEnv`: as variáveis que levam as portas no modo paralelo ("SERVER_PORT": "{apiPort}"). */
@@ -43,25 +49,25 @@ type LineState = "run" | "part" | "held" | "start" | "wait" | "stop" | "kill" | 
 const TABS: Tab[] = ["api", "front"];
 const TAB_LABEL: Record<Tab, string> = { api: "API", front: "Front" };
 const FLAP: Record<LineState, string> = {
-  run: "RODANDO",
-  part: "SEM LADO", // caiu; flapText diz qual: "SEM FRONT"
-  held: "PARADO", // parado à mão; flapText diz qual: "API PARADA"
-  start: "SUBINDO",
-  wait: "AGUARDA",
-  stop: "PARANDO",
+  run: tr("RODANDO"),
+  part: tr("SEM LADO"), // caiu; flapText diz qual: "SEM FRONT"
+  held: tr("PARADO"), // parado à mão; flapText diz qual: "API PARADA"
+  start: tr("SUBINDO"),
+  wait: tr("AGUARDA"),
+  stop: tr("PARANDO"),
   kill: "SIGKILL",
-  idle: "INATIVA",
+  idle: tr("INATIVA"),
   none: "",
 };
 // SEM FRONT e API PARADA falam qual lado e por quê (say): "só Front rodando, API parada à mão".
 const SPOKEN: Record<Exclude<LineState, "part" | "held">, string> = {
-  run: "rodando",
-  start: "subindo",
-  wait: "aguardando a anterior parar",
-  stop: "parando",
-  kill: "parando à força",
-  idle: "inativa",
-  none: "não aberta",
+  run: tr("rodando"),
+  start: tr("subindo"),
+  wait: tr("aguardando a anterior parar"),
+  stop: tr("parando"),
+  kill: tr("parando à força"),
+  idle: tr("inativa"),
+  none: tr("não aberta"),
 };
 const CONFIG_PATH = "~/.config/hotswap/config.json";
 // Linhas de até ~40 caracteres: com repo e startCommand na mesma linha (74), a 1440 o exemplo saía cortado em "npm r",
@@ -221,7 +227,7 @@ moreMenu.addEventListener("toggle", (e) => {
   moreMenu.style.top = `${r.bottom + 4}px`;
   moreMenu.style.right = `${innerWidth - r.right}px`;
   if (editorsMode) return void renderEditors();
-  moreMenu.setAttribute("aria-label", "Mais ações");
+  moreMenu.setAttribute("aria-label", tr("Mais ações"));
   const ck = currentKey();
   const restartPane = ck && current?.wt[tab]?.startCommand ? envs.get(ck)?.panes[tab] : undefined;
   moreMenu.replaceChildren(
@@ -253,7 +259,7 @@ moreMenu.addEventListener("toggle", (e) => {
       const b = el(
         "button",
         { type: "button", className: "more-item", title: src.title, onclick: () => (moreMenu.hidePopover(), act()) },
-        el("span", { textContent: src === urlEl ? `Abrir ${urlEl.textContent} no navegador` : src.dataset.label! }),
+        el("span", { textContent: src === urlEl ? tr("Abrir {0} no navegador", urlEl.textContent) : src.dataset.label! }),
         ...(keys ? [el("span", { className: "keys", textContent: keys })] : []),
       );
       if (src.dataset.ends) b.dataset.ends = src.dataset.ends;
@@ -269,12 +275,12 @@ moreMenu.addEventListener("toggle", (e) => {
             {
               type: "button",
               className: "more-item",
-              title: `Parar ${TAB_LABEL[tab]} e subir de novo (Ctrl+Shift+R; com Alt, os dois lados)`,
+              title: tr("Parar {0} e subir de novo (Ctrl+Shift+R; com Alt, os dois lados)", TAB_LABEL[tab]),
               ariaKeyShortcuts: "Control+Shift+R",
               ariaDisabled: stopping.has(current!.project) || halting.has(ck!) || !(starting.has(ck!) || busy.has(restartPane.ptyId)) ? "true" : null,
               onclick: () => (moreMenu.hidePopover(), toggleRun(false, "restart"))
             },
-            el("span", { textContent: `Reiniciar ${TAB_LABEL[tab]}` }),
+            el("span", { textContent: tr("Reiniciar {0}", TAB_LABEL[tab]) }),
             el("span", { className: "keys", textContent: "Ctrl+Shift+R" })
           )
         ]
@@ -282,14 +288,14 @@ moreMenu.addEventListener("toggle", (e) => {
     ...(current
       ? [
           pullItem(current.project, current.wt),
-          el("button", { type: "button", className: "more-item", title: `gh pr view ${tabBranch(current.wt)} --web`, onclick: () => (moreMenu.hidePopover(), viewPr()) }, el("span", { textContent: "Ver PR" })),
+          el("button", { type: "button", className: "more-item", title: `gh pr view ${tabBranch(current.wt)} --web`, onclick: () => (moreMenu.hidePopover(), viewPr()) }, el("span", { textContent: tr("Ver PR") })),
           el(
             "button",
             { type: "button", className: "more-item", title: current.wt[editorSide(current.wt)]!.path, ariaKeyShortcuts: "Control+Shift+O", onclick: () => (moreMenu.hidePopover(), openInEditor()) },
-            el("span", { textContent: "Abrir no editor" }),
+            el("span", { textContent: tr("Abrir no editor") }),
             el("span", { className: "keys", textContent: "Ctrl+Shift+O" }),
           ),
-          el("button", { type: "button", className: "more-item", title: "Escolher o editor (fica para o Ctrl+Shift+O)", onclick: openWith }, el("span", { textContent: "Abrir com…" })),
+          el("button", { type: "button", className: "more-item", title: tr("Escolher o editor (fica para o Ctrl+Shift+O)"), onclick: openWith }, el("span", { textContent: tr("Abrir com…") })),
         ]
       : []),
   );
@@ -318,24 +324,24 @@ function editorSide(wt: Worktree): Tab {
 /** Ctrl+Shift+O e o ⋯: abre a pasta da aba visível no editor escolhido em "Abrir com…", senão no `editorCommand` (o
  *  backend lê o config na hora). Sem nenhum, abre a lista; se o editor não abre, a segunda faixa oferece outro. */
 function openInEditor(target = current) {
-  if (!target) return headerNote(false, null, "Escolha uma worktree primeiro.");
+  if (!target) return headerNote(false, null, tr("Escolha uma worktree primeiro."));
   const { project, wt } = target;
   const side = editorSide(wt);
   invoke<boolean>("open_in_editor", { path: wt[side]!.path }).then(
     (ok) => {
       if (alertEl.querySelector(".editor")) clearNote(alertEl);
-      if (ok) headerNote(false, project, `Abrindo ${TAB_LABEL[side]} no editor`);
+      if (ok) headerNote(false, project, tr("Abrindo {0} no editor", TAB_LABEL[side]));
       // "Abrir com…" lista para a worktree em serviço; de outra (menu da linha), o cabeçalho diz onde escolher.
       else if (target === current) openWith();
-      else headerNote(false, project, "Nenhum editor escolhido · abra a worktree e use Abrir com… no ⋯");
+      else headerNote(false, project, tr("Nenhum editor escolhido · abra a worktree e use Abrir com… no ⋯"));
     },
     (err) =>
       headerNote(
         true,
         project,
-        el("span", { className: "editor", textContent: "Editor não abriu" }),
+        el("span", { className: "editor", textContent: tr("Editor não abriu") }),
         el("span", { className: "why", textContent: `· ${err}`, title: String(err) }),
-        el("button", { type: "button", className: "note-act", textContent: "Abrir com…", onclick: openWith }),
+        el("button", { type: "button", className: "note-act", textContent: tr("Abrir com…"), onclick: openWith }),
       ),
   );
 }
@@ -344,7 +350,7 @@ function openInEditor(target = current) {
  *  dev server o recompila no meio, e numa troca a pasta está sendo largada ou assumida). */
 function pullBlocked(project: string, wt: Worktree) {
   const state = lineState(project, wt);
-  return BUSY.includes(state) ? `${wt.label}, ${say(project, wt, state)}: pare a worktree antes de atualizar` : null;
+  return BUSY.includes(state) ? tr("{0}, {1}: pare a worktree antes de atualizar", wt.label, say(project, wt, state)) : null;
 }
 
 /** "Atualizar (pull)" no ⋯, para a worktree em serviço. Indisponível, fica aria-disabled com o motivo, e o clique o diz. */
@@ -356,11 +362,11 @@ function pullItem(project: string, wt: Worktree, menu = moreMenu) {
     {
       type: "button",
       className: "more-item",
-      title: blocked ?? `git pull --ff-only em ${paths.join(" e ")}`,
-      ariaLabel: blocked ? `Atualizar (pull): indisponível; ${blocked}` : "Atualizar (pull)",
+      title: blocked ?? tr("git pull --ff-only em {0}", paths.join(tr(" e "))),
+      ariaLabel: blocked ? tr("Atualizar (pull): indisponível; {0}", blocked) : tr("Atualizar (pull)"),
       onclick: () => (menu.hidePopover(), pullWorktree(project, wt))
     },
-    el("span", { textContent: "Atualizar (pull)" })
+    el("span", { textContent: tr("Atualizar (pull)") })
   );
   if (blocked) b.setAttribute("aria-disabled", "true");
   return b;
@@ -373,7 +379,7 @@ async function pullWorktree(project: string, wt: Worktree) {
   const blocked = pullBlocked(project, wt);
   if (blocked) return headerNote(false, project, blocked);
   const tabs = TABS.filter(t => wt[t]);
-  headerNote(false, project, `Atualizando ${wt.label}…`);
+  headerNote(false, project, tr("Atualizando {0}…", wt.label));
   type Pulled = { Ok: boolean } | { Err: string };
   const res = await invoke<Pulled[]>("pull_worktree", { paths: tabs.map(t => wt[t]!.path) }).catch((err): Pulled[] => tabs.map(() => ({ Err: String(err) })));
   void readGit();
@@ -381,13 +387,13 @@ async function pullWorktree(project: string, wt: Worktree) {
     const r = res[i];
     return "Err" in r ? [{ t, err: r.Err }] : [];
   });
-  if (!failed.length) return headerNote(false, project, res.some(r => "Ok" in r && r.Ok) ? `Atualizada: ${wt.label}` : "Já estava em dia");
+  if (!failed.length) return headerNote(false, project, res.some(r => "Ok" in r && r.Ok) ? tr("Atualizada: {0}", wt.label) : tr("Já estava em dia"));
   if (lastStopEl.dataset.project === project) clearNote(lastStopEl);
   // "API: a branch divergiu da remota, não é fast-forward; Front: atualizada". Na solo, sem o nome do lado.
   const said = tabs
     .map((t, i) => {
       const r = res[i];
-      const text = "Err" in r ? pullErrorSummary(r.Err) : r.Ok ? "atualizada" : "já estava em dia";
+      const text = "Err" in r ? pullErrorSummary(r.Err) : r.Ok ? tr("atualizada") : tr("já estava em dia");
       return tabs.length > 1 ? `${TAB_LABEL[t]}: ${text}` : text;
     })
     .join("; ");
@@ -395,7 +401,7 @@ async function pullWorktree(project: string, wt: Worktree) {
   headerNote(
     true,
     project,
-    "Pull falhou",
+    tr("Pull falhou"),
     el("span", { className: "who", textContent: `· ${said}`, title: said }),
     el("span", { className: "why", textContent: `· ${pullErrorLine(failed[0].err)}`, title: raw })
   );
@@ -414,12 +420,12 @@ function viewPr(target = current) {
   const side = editorSide(wt);
   const branch = tabBranch(wt);
   invoke<boolean>("open_pr", { path: wt[side]!.path, branch }).then(
-    found => headerNote(false, project, found ? `Abrindo a PR de ${branch} no navegador` : `Sem PR aberta para ${branch}`),
+    found => headerNote(false, project, found ? tr("Abrindo a PR de {0} no navegador", branch) : tr("Sem PR aberta para {0}", branch)),
     err => {
       const raw = String(err);
       // Sem gh instalado ou logado: o próximo passo, inteiro (o do backend fala em clonar).
-      const step = raw.startsWith("Instale") ? "Instale o GitHub CLI (gh) e entre com gh auth login" : raw.startsWith("Entre no GitHub") ? raw : null;
-      headerNote(true, project, "PR não abriu", step ? el("span", { textContent: `· ${step}` }) : el("span", { className: "why", textContent: `· ${raw.split("\n")[0]}`, title: raw }));
+      const step = raw.startsWith(tr("Instale")) ? tr("Instale o GitHub CLI (gh) e entre com gh auth login") : raw.startsWith(tr("Entre no GitHub")) ? raw : null;
+      headerNote(true, project, tr("PR não abriu"), step ? el("span", { textContent: `· ${step}` }) : el("span", { className: "why", textContent: `· ${raw.split("\n")[0]}`, title: raw }));
     }
   );
 }
@@ -436,24 +442,24 @@ type Editors = { editors: { id: string; name: string }[]; chosen: string | null;
 /** Os editores instalados (relidos a cada vez) e o `editorCommand`, se houver; o que o Ctrl+Shift+O abre leva o atalho.
  *  Escolher grava a escolha e abre. */
 async function renderEditors() {
-  moreMenu.setAttribute("aria-label", "Abrir com");
+  moreMenu.setAttribute("aria-label", tr("Abrir com"));
   let list: Editors;
   try {
     list = await invoke<Editors>("list_editors");
   } catch (err) {
     list = { editors: [], chosen: null, command: null };
-    headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: "Não consegui listar os editores" }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) }));
+    headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: tr("Não consegui listar os editores") }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) }));
   }
   if (!editorsMode) return;
   const pick = (id: string | null) => () => {
     moreMenu.hidePopover();
-    invoke("set_editor", { id }).then(() => openInEditor(), (err) => headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: "Não gravei o editor" }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) })));
+    invoke("set_editor", { id }).then(() => openInEditor(), (err) => headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: tr("Não gravei o editor") }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) })));
   };
   const keys = (on: boolean) => (on ? [el("span", { className: "keys", textContent: "Ctrl+Shift+O" })] : []);
   const items = list.editors.map((e) => el("button", { type: "button", className: "more-item", title: e.id, onclick: pick(e.id) }, el("span", { textContent: e.name }), ...keys(e.id === list.chosen)));
-  if (list.command) items.push(el("button", { type: "button", className: "more-item", title: "editorCommand do config", onclick: pick(null) }, el("span", { className: "mono", textContent: list.command }), ...keys(!list.chosen)));
-  if (!items.length) items.push(el("button", { type: "button", className: "more-item", title: "Defina editorCommand no config", onclick: () => (moreMenu.hidePopover(), invoke("open_config")) }, el("span", { textContent: "Nenhum editor encontrado · Abrir config" })));
-  moreMenu.replaceChildren(el("p", { className: "more-head", textContent: "Abrir com" }), ...items);
+  if (list.command) items.push(el("button", { type: "button", className: "more-item", title: tr("editorCommand do config"), onclick: pick(null) }, el("span", { className: "mono", textContent: list.command }), ...keys(!list.chosen)));
+  if (!items.length) items.push(el("button", { type: "button", className: "more-item", title: tr("Defina editorCommand no config"), onclick: () => (moreMenu.hidePopover(), invoke("open_config")) }, el("span", { textContent: tr("Nenhum editor encontrado · Abrir config") })));
+  moreMenu.replaceChildren(el("p", { className: "more-head", textContent: tr("Abrir com") }), ...items);
   (moreMenu.querySelector<HTMLElement>("button:has(.keys)") ?? moreMenu.querySelector<HTMLElement>("button"))?.focus();
 }
 
@@ -487,8 +493,8 @@ function headerNote(stay: boolean, about: string | null, ...nodes: (Node | strin
         {
           type: "button",
           className: "note-x",
-          title: "Dispensar o recado",
-          ariaLabel: "Dispensar o recado",
+          title: tr("Dispensar o recado"),
+          ariaLabel: tr("Dispensar o recado"),
           onclick: () => {
             clearNote(alertEl);
             render(true);
@@ -514,7 +520,7 @@ function seeTerminal(project: string, id: string, side: Tab) {
   return el("button", {
     type: "button",
     className: "note-act",
-    textContent: "Ver o terminal",
+    textContent: tr("Ver o terminal"),
     onclick: () => {
       const wt = findWt(project, id);
       if (!wt || active[project] !== id) return clearNote(alertEl);
@@ -527,7 +533,7 @@ function seeTerminal(project: string, id: string, side: Tab) {
  *  fora da faixa (fitHeader liga): a meia tela, a saída da falha ficava escondida no ⋯. */
 function upHere(project: string, id: string, down: Tab[]) {
   if (key(project, id) !== currentKey()) return null;
-  return el("button", { type: "button", className: "note-act note-up", textContent: `Subir ${down.map((t) => TAB_LABEL[t]).join(" e ")}`, onclick: () => toggleRun(false, "start") });
+  return el("button", { type: "button", className: "note-act note-up", textContent: tr("Subir {0}", down.map((t) => TAB_LABEL[t]).join(tr(" e "))), onclick: () => toggleRun(false, "start") });
 }
 /** "· Error: listen EADDRINUSE: address already in use :::3000": a primeira linha de erro no fim do terminal do lado
  *  que caiu ou não subiu. A falha dizia o quê, não por quê; para saber era preciso abrir o terminal.
@@ -544,7 +550,7 @@ function errorWhy(project: string, id: string, side: Tab) {
 /** "Parou em 1,8 s" ou "Parou à força em 5,0 s": encerrar à força é rotina (o alvo subiu, a anterior parou como pedido),
  *  então o recado é neutro e expira; só "à força" fala na cor do SIGKILL. */
 function stoppedIn(secs: string, forced: boolean) {
-  return forced ? el("span", {}, "Parou ", el("span", { className: "forced", textContent: "à força" }), ` em ${secs} s`) : `Parou em ${secs} s`;
+  return forced ? el("span", {}, tr("Parou "), el("span", { className: "forced", textContent: tr("à força") }), tr(" em {0} s", secs)) : tr("Parou em {0} s", secs);
 }
 /** "· INTERNO / feat/x": o projeto entra quando não é o atual, onde outra worktree pode ter o mesmo nome ("main").
  *  A worktree em serviço já está no destino, logo acima: o recado dela não repete o nome ("Front parou", "Parou em 0,4 s · API");
@@ -629,8 +635,8 @@ function flap(state: LineState, id: string, text = FLAP[state]) {
  *  foi pedido, e só um quadrado de 6px os separava. */
 function flapText(project: string, wt: Worktree, state: LineState) {
   const s = sides(key(project, wt.id));
-  if (state === "part") return `SEM ${s.down.map((t) => TAB_LABEL[t].toUpperCase()).join(" E ")}`;
-  if (state === "held") return s.held.map((t) => (t === "api" ? "API PARADA" : "FRONT PARADO")).join(" E ");
+  if (state === "part") return tr("SEM {0}", s.down.map((t) => TAB_LABEL[t].toUpperCase()).join(" E "));
+  if (state === "held") return s.held.map((t) => (t === "api" ? tr("API PARADA") : tr("FRONT PARADO"))).join(" E ");
   return FLAP[state];
 }
 
@@ -695,13 +701,13 @@ function lineState(project: string, wt: Worktree): LineState {
 function say(project: string, wt: Worktree, state: LineState) {
   if (state !== "part" && state !== "held") return SPOKEN[state];
   const { up, down, held } = sides(key(project, wt.id));
-  const names = (ts: Tab[]) => ts.map((t) => TAB_LABEL[t]).join(" e ");
-  if (!up.length) return `${names(held)} parada à mão, ${names(down)} caiu`;
-  return `só ${names(up)} rodando, ${state === "part" ? `${names(down)} caiu` : `${names(held)} parada à mão`}`;
+  const names = (ts: Tab[]) => ts.map((t) => TAB_LABEL[t]).join(tr(" e "));
+  if (!up.length) return tr("{0} parada à mão, {1} caiu", names(held), names(down));
+  return tr("só {0} rodando, {1}", names(up), state === "part" ? tr("{0} caiu", names(down)) : tr("{0} parada à mão", names(held)));
 }
 
 /** O title da linha, para os estados sem palavra no painel. */
-const STATE_HINT: Partial<Record<LineState, string>> = { idle: "Inativa: terminais abertos, nada rodando", none: "Ainda não aberta nesta sessão" };
+const STATE_HINT: Partial<Record<LineState, string>> = { idle: tr("Inativa: terminais abertos, nada rodando"), none: tr("Ainda não aberta nesta sessão") };
 
 const X_ICON = "M4.5 4.5l7 7M11.5 4.5l-7 7";
 const PAIR_ICON = "M3 5.5h10M10.5 3 13 5.5 10.5 8M13 10.5H3M5.5 8 3 10.5 5.5 13";
@@ -724,7 +730,7 @@ function samePairName(api: string, front: string) {
 function labelNodes(label: string): (Node | string)[] {
   const [a, f] = label.split(" ↔ ");
   if (f === undefined) return [label];
-  const arrow = [icon(PAIR_ICON, "inline"), el("span", { className: "sr", textContent: " pareada com " })];
+  const arrow = [icon(PAIR_ICON, "inline"), el("span", { className: "sr", textContent: tr(" pareada com ") })];
   const same = samePairName(a, f);
   return same ? [same[2], el("span", { className: "pair-pre" }, ` ${same[0]}`, ...arrow, same[1])] : [a, ...arrow, f];
 }
@@ -734,16 +740,16 @@ function proseName(label: string) {
   return f === undefined ? label : (samePairName(a, f)?.[2] ?? a);
 }
 /** O mesmo rótulo para atributos (aria-label), onde não cabe nó. */
-const spokenLabel = (label: string) => label.replace(" ↔ ", " pareada com ");
+const spokenLabel = (label: string) => label.replace(" ↔ ", tr(" pareada com "));
 /** Etiqueta SÓ API / SÓ FRONT da worktree de um lado só, no painel e na paleta. */
 function soloTag(wt: Worktree) {
   const [api, front] = wt.id.split("|");
-  return !api ? el("span", { className: "tag", textContent: "SÓ FRONT" }) : !front ? el("span", { className: "tag", textContent: "SÓ API" }) : null;
+  return !api ? el("span", { className: "tag", textContent: tr("SÓ FRONT") }) : !front ? el("span", { className: "tag", textContent: tr("SÓ API") }) : null;
 }
 /** ", só API" / ", só front" para a worktree de um lado só (o id é "api|front"). */
 function soloSay(wt: Worktree) {
   const [api, front] = wt.id.split("|");
-  return !api ? ", só front" : !front ? ", só API" : "";
+  return !api ? tr(", só front") : !front ? tr(", só API") : "";
 }
 
 /** "feat/scrap-movement" → ["feat/", "scrap-movement"]. */
@@ -907,7 +913,7 @@ async function startEnv(k: string, env: Env) {
   const wt = findWt(project, id);
   const plan = wt && isParallel(project) ? await planPorts(project, wt) : null;
   // Cancelado: não sobe nada (e o setup da primeira subida fica para a próxima).
-  if (plan === "cancel") return headerNote(false, project, "Não subiu: portas canceladas", noteWho(project, id, wt!.label, " · "));
+  if (plan === "cancel") return headerNote(false, project, tr("Não subiu: portas canceladas"), noteWho(project, id, wt!.label, " · "));
   const def = defaultPorts[project] ?? NO_PORTS;
   const ports = plan && { api: plan.api ?? def.api, front: plan.front ?? def.front };
   for (const pane of Object.values(env.panes))
@@ -1015,22 +1021,22 @@ async function toggleRun(all: boolean, want?: Verb) {
   const env = envs.get(k);
   if (!env) return;
   // Atalho durante a troca ou outra parada: não faz nada, mas diz por quê (mudo, parecia que a tecla não pegou).
-  if (stopping.has(project)) return headerNote(false, project, "Troca em andamento · Voltar ou Forçar na faixa");
-  if (halting.has(k)) return headerNote(false, project, "Parando · espere os processos saírem");
+  if (stopping.has(project)) return headerNote(false, project, tr("Troca em andamento · Voltar ou Forçar na faixa"));
+  if (halting.has(k)) return headerNote(false, project, tr("Parando · espere os processos saírem"));
   // Sem verbo (o clique), o do botão: ele diz o que vai fazer.
   const asked = (all ? TABS : sideTabs(want ?? haltVerb(all))).filter((t) => env.panes[t]);
   // Reiniciar só mexe nos lados com start: o sem start não reinicia (nem para).
   const tabs = want === "restart" ? asked.filter(t => env.panes[t]!.side.startCommand) : asked;
   const panes = tabs.map((t) => env.panes[t]!);
   const running = starting.has(k) || panes.some((p) => busy.has(p.ptyId));
-  const what = asked.map((t) => TAB_LABEL[t]).join(" e ");
+  const what = asked.map((t) => TAB_LABEL[t]).join(tr(" e "));
   if (want === "restart") {
     const why = restartRefusal({ what, all, hasStart: tabs.length > 0, running });
     if (why) return headerNote(false, project, why);
   }
-  if (want === "stop" && !running) return headerNote(false, project, `Nada rodando ${all ? "na worktree" : `em ${what}`} · Ctrl+Shift+${all ? "Alt+" : ""}S sobe`);
-  if (want === "start" && running) return headerNote(false, project, `${all ? "A worktree" : what} já está rodando · Ctrl+Shift+${all ? "Alt+" : ""}X para`);
-  if (want === "start" && !panes.some((p) => p.side.startCommand)) return headerNote(false, project, `${what}: sem comando de start`);
+  if (want === "stop" && !running) return headerNote(false, project, tr("Nada rodando {0} · Ctrl+Shift+{1}S sobe", all ? tr("na worktree") : tr("em {0}", what), all ? "Alt+" : ""));
+  if (want === "start" && running) return headerNote(false, project, tr("{0} já está rodando · Ctrl+Shift+{1}X para", all ? tr("A worktree") : what, all ? "Alt+" : ""));
+  if (want === "start" && !panes.some((p) => p.side.startCommand)) return headerNote(false, project, tr("{0}: sem comando de start", what));
   // Parar ou subir responde a qualquer recado deste projeto: "Nada rodando em API" ao lado de RODANDO, ou o "Parou à força"
   // da troca anterior ao lado de ↓ PARANDO, contradiziam o estado. A troca já faz isso (activate).
   clearNotes(project);
@@ -1065,8 +1071,8 @@ async function haltTabs(project: string, wt: Worktree, env: Env, tabs: Tab[]) {
   clearTimeout(forceTimer);
   halting.delete(k);
   for (const p of panes) busy.delete(p.ptyId);
-  const secs = ((Date.now() - t0) / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  headerNote(false, project, stoppedIn(secs, forced), noteWho(project, wt.id, wt.label, tabs.map((t) => TAB_LABEL[t]).join(" e "), " · "));
+  const secs = ((Date.now() - t0) / 1000).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  headerNote(false, project, stoppedIn(secs, forced), noteWho(project, wt.id, wt.label, tabs.map((t) => TAB_LABEL[t]).join(tr(" e ")), " · "));
   render();
 }
 
@@ -1119,7 +1125,7 @@ function activate(project: string, wt: Worktree, created: boolean) {
       wasUp.delete(key(project, prev));
       // O fim da troca também tem fechamento: quanto a anterior levou para sair, e se foi à força.
       if (hadProcs) {
-        const secs = ((Date.now() - state.deadline + config.stopTimeoutMs) / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        const secs = ((Date.now() - state.deadline + config.stopTimeoutMs) / 1000).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
         // O tempo primeiro: sem espaço, quem trunca é o nome, nunca o "parou em".
         const who = noteWho(project, state.fromId, state.from);
         headerNote(false, project, stoppedIn(secs, !!state.forcing), who);
@@ -1211,9 +1217,9 @@ function render(focus = false) {
     // Apertado (.tight), os rótulos de um lado só saem dos fantasmas: reservavam ~40px que a branch não tinha (a 720
     // sobrava "…vivo"). Eles são raros e não chegam no meio de uma troca, quando o cursor mira o que vem depois.
     const ghost = (cls: string, ...c: (Node | string)[]) => el("span", { className: cls }, ...c);
-    f.append(ghost("ghost", icon(DIR.stop!, "dir"), FLAP.stop), ...(wt.api && wt.front ? ["FRONT PARADO", "API PARADA", "SEM FRONT"].map((t) => ghost("ghost side", t)) : []));
+    f.append(ghost("ghost", icon(DIR.stop!, "dir"), FLAP.stop), ...(wt.api && wt.front ? [tr("FRONT PARADO"), tr("API PARADA"), tr("SEM FRONT")].map((t) => ghost("ghost side", t)) : []));
     // "Parar tudo" com o cursor ou o foco mostra a mesma prévia ENCERRA das linhas (CSS).
-    if (LIVE.includes(state)) f.append(el("span", { className: "ends", textContent: "ENCERRA" }));
+    if (LIVE.includes(state)) f.append(el("span", { className: "ends", textContent: tr("ENCERRA") }));
     // O visível trunca (cutDest) e perde o projeto; quem fala é o .sr, inteiro. Truncado dentro da região viva, o leitor
     // de tela ouvia "feat/agrupador-de-lotes-…leilao".
     const where = el("span", { className: "where", title: `${project} / ${wt.label}`, ariaHidden: "true" }, el("span", { className: project.length <= 8 ? "project short" : "project", textContent: project }), el("span", { className: "sep", textContent: "/" }), el("span", { className: "branch-name" }, ...labelNodes(wt.label)));
@@ -1226,7 +1232,7 @@ function render(focus = false) {
   if (url && urlEl.href !== `${url}/`) {
     urlEl.href = url;
     urlEl.textContent = shownPane!.url!.replace("localhost", "");
-    urlEl.title = `Abrir ${url} no navegador`;
+    urlEl.title = tr("Abrir {0} no navegador", url);
     urlEl.setAttribute("aria-label", urlEl.title);
   }
   renderHalt(haltTabEl, false);
@@ -1250,15 +1256,15 @@ function render(focus = false) {
         "button",
         { type: "button", id: `tab-${t}`, tabIndex: t === tab ? 0 : -1, onclick: () => setTab(t, true) },
         el("span", { textContent: TAB_LABEL[t] }),
-        down.includes(t) ? el("span", { className: "sr", textContent: " (caiu)" }) : null,
-        parked.includes(t) ? el("span", { className: "sr", textContent: " (parado à mão)" }) : null,
-        stoppingTabs.includes(t) ? el("span", { className: "sr", textContent: " (parando)" }) : null,
+        down.includes(t) ? el("span", { className: "sr", textContent: tr(" (caiu)") }) : null,
+        parked.includes(t) ? el("span", { className: "sr", textContent: tr(" (parado à mão)") }) : null,
+        stoppingTabs.includes(t) ? el("span", { className: "sr", textContent: tr(" (parando)") }) : null,
       );
       b.classList.toggle("down", down.includes(t));
       b.classList.toggle("parked", parked.includes(t));
       b.classList.toggle("halting", stoppingTabs.includes(t));
-      if (down.includes(t)) b.title = `Nada rodando no ${TAB_LABEL[t]}`;
-      if (parked.includes(t)) b.title = `${TAB_LABEL[t]} parado à mão (Ctrl+Shift+S sobe)`;
+      if (down.includes(t)) b.title = tr("Nada rodando no {0}", TAB_LABEL[t]);
+      if (parked.includes(t)) b.title = tr("{0} parado à mão (Ctrl+Shift+S sobe)", TAB_LABEL[t]);
       b.setAttribute("role", "tab");
       b.setAttribute("aria-selected", String(t === tab));
       const pane = env?.panes[t];
@@ -1285,8 +1291,8 @@ function render(focus = false) {
  *  Clicar em "Parar API" virava "Subir API", mais estreito, e "Parar tudo" deslizava para baixo do cursor, com a prévia
  *  ENCERRA acesa; o segundo clique parava a worktree inteira. */
 const HALT_LABELS = {
-  tab: ["Parar API", "Subir API", "Parar Front", "Subir Front"],
-  all: ["Parar tudo", "Subir tudo"],
+  tab: [tr("Parar API"), tr("Subir API"), tr("Parar Front"), tr("Subir Front")],
+  all: [tr("Parar tudo"), tr("Subir tudo")],
 };
 
 /** "Parar API" (`all`: "Parar tudo") da worktree atual: Parar se algo roda (ou acabou de subir), Subir se há start;
@@ -1307,15 +1313,15 @@ function renderHalt(b: HTMLButtonElement, all: boolean) {
   b.classList.toggle("hold", swapping);
   b.inert = swapping;
   if (b.hidden) return;
-  const word = running ? "Parar" : "Subir";
-  const text = `${word} ${all ? "tudo" : TAB_LABEL[tabs[0]]}`;
+  const word = running ? tr("Parar") : tr("Subir");
+  const text = `${word} ${all ? tr("tudo") : TAB_LABEL[tabs[0]]}`;
   const wait = halting.has(k);
   // Prévia do que Parar encerra (CSS): a aba, ou a worktree inteira quando os lados dela são todos estes.
   if (running && !wait) b.dataset.ends = panes.length === Object.keys(envs.get(k)?.panes ?? {}).length ? "all" : "tab";
   else delete b.dataset.ends;
   // Um verbo por atalho: X para, S sobe.
   const chord = `Shift+${all ? "Alt+" : ""}${running ? "X" : "S"}`;
-  const title = wait ? "Aguarde: parando processos" : `${word} ${tabs.map((t) => TAB_LABEL[t]).join(" e ")} (Ctrl+${chord})`;
+  const title = wait ? tr("Aguarde: parando processos") : `${word} ${tabs.map((t) => TAB_LABEL[t]).join(tr(" e "))} (Ctrl+${chord})`;
   if (b.title === title && b.dataset.label === text) return;
   b.title = title;
   b.dataset.label = text;
@@ -1332,36 +1338,36 @@ function howItWorks() {
   const step = (state: LineState, text: string) => el("li", {}, flap(state, `how:${state}`), el("span", { textContent: text }));
   return el(
     "ol",
-    { className: "how", ariaLabel: "Como a troca funciona" },
-    step("stop", "a worktree anterior recebe Ctrl+C"),
-    step("wait", "a nova espera as portas liberarem"),
-    step("run", "API e front sobem, cada um no seu terminal"),
+    { className: "how", ariaLabel: tr("Como a troca funciona") },
+    step("stop", tr("a worktree anterior recebe Ctrl+C")),
+    step("wait", tr("a nova espera as portas liberarem")),
+    step("run", tr("API e front sobem, cada um no seu terminal")),
   );
 }
 
 function renderEmpty() {
-  const missing = configError?.includes("Não consegui ler");
+  const missing = configError?.includes(tr("Não consegui ler"));
   const hadFocus = document.activeElement === document.body || emptyEl.contains(document.activeElement);
   emptyEl.replaceChildren(
     ...(configError
       ? [
-          el("h2", { textContent: missing ? "Nenhum projeto configurado" : "O config tem um problema" }),
-          el("p", { textContent: missing ? "Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel." : configError }),
+          el("h2", { textContent: missing ? tr("Nenhum projeto configurado") : tr("O config tem um problema") }),
+          el("p", { textContent: missing ? tr("Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel.") : configError }),
           ...(missing ? [howItWorks()] : []),
-          el("p", {}, el("button", { type: "button", className: "btn primary", textContent: "Criar projeto", onclick: () => openProjectDialog() })),
-          el("p", { textContent: `Ou edite ${CONFIG_PATH} à mão; o painel relê quando você volta para a janela:` }),
+          el("p", {}, el("button", { type: "button", className: "btn primary", textContent: tr("Criar projeto"), onclick: () => openProjectDialog() })),
+          el("p", { textContent: tr("Ou edite {0} à mão; o painel relê quando você volta para a janela:", CONFIG_PATH) }),
           el("pre", { textContent: CONFIG_EXAMPLE }),
         ]
       : config.projects.length
         ? [
-            el("h2", { textContent: "Nenhuma worktree aberta" }),
-            el("p", {}, "Escolha uma no painel ou use ", el("kbd", { textContent: "Ctrl" }), el("kbd", { textContent: "Shift" }), el("kbd", { textContent: "K" }), "."),
+            el("h2", { textContent: tr("Nenhuma worktree aberta") }),
+            el("p", {}, tr("Escolha uma no painel ou use "), el("kbd", { textContent: "Ctrl" }), el("kbd", { textContent: "Shift" }), el("kbd", { textContent: "K" }), "."),
           ]
         : [
-            el("h2", { textContent: "Nenhum projeto ainda" }),
-            el("p", { textContent: "Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel." }),
+            el("h2", { textContent: tr("Nenhum projeto ainda") }),
+            el("p", { textContent: tr("Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel.") }),
             howItWorks(),
-            el("p", {}, el("button", { type: "button", className: "btn primary", textContent: "Criar projeto", onclick: () => openProjectDialog() })),
+            el("p", {}, el("button", { type: "button", className: "btn primary", textContent: tr("Criar projeto"), onclick: () => openProjectDialog() })),
           ]),
   );
   if (hadFocus) emptyEl.querySelector<HTMLButtonElement>(".btn.primary")?.focus();
@@ -1411,13 +1417,13 @@ function renderWait(project: string, wt: Worktree) {
   const from = spokenLabel(st.from);
   const detail = goingBack
     ? st.forcing
-      ? `Reiniciando ${from}: os processos não saíram com Ctrl+C e estão sendo encerrados à força (SIGKILL); reinicia em seguida.`
-      : `Reiniciando ${from}: Ctrl+C já enviado; reinicia assim que os processos saírem.`
+      ? tr("Reiniciando {0}: os processos não saíram com Ctrl+C e estão sendo encerrados à força (SIGKILL); reinicia em seguida.", from)
+      : tr("Reiniciando {0}: Ctrl+C já enviado; reinicia assim que os processos saírem.", from)
     : st.forcing === "user"
-      ? `Parando ${from} à força (SIGKILL), como pedido. Depois sobe ${next}.`
+      ? tr("Parando {0} à força (SIGKILL), como pedido. Depois sobe {1}.", from, next)
       : st.forcing
-        ? `${from} não parou com Ctrl+C a tempo; os processos estão sendo encerrados à força (SIGKILL). Depois sobe ${next}.`
-        : `Parando ${from}: Ctrl+C enviado ${names.length ? `a ${names.join(", ")}` : "aos processos"}. Quando as portas liberarem, sobe ${next}. Se não saírem até a contagem zerar, recebem SIGKILL.`;
+        ? tr("{0} não parou com Ctrl+C a tempo; os processos estão sendo encerrados à força (SIGKILL). Depois sobe {1}.", from, next)
+        : tr("Parando {0}: Ctrl+C enviado {1}. Quando as portas liberarem, sobe {2}. Se não saírem até a contagem zerar, recebem SIGKILL.", from, names.length ? `a ${names.join(", ")}` : tr("aos processos"), next);
   switchingEl.title = detail;
   // Só quando muda: aos 2 s (a contagem entra) o mesmo texto era dito de novo, e o SIGKILL depois do Voltar, nunca.
   if (waitSay.textContent !== detail) waitSay.textContent = detail;
@@ -1434,10 +1440,10 @@ function renderWait(project: string, wt: Worktree) {
           type: "button",
           className: goingBack ? "btn back hold" : "btn back",
           inert: goingBack,
-          textContent: "Voltar",
+          textContent: tr("Voltar"),
           // A paleta abre na anterior: no meio da troca, Ctrl+Shift+K e Enter é o Voltar pelo teclado.
-          title: `Cancela a troca e reinicia ${st.from} (Ctrl+Shift+K, Enter)`,
-          ariaLabel: `Voltar: cancela a troca e reinicia ${from}`,
+          title: tr("Cancela a troca e reinicia {0} (Ctrl+Shift+K, Enter)", st.from),
+          ariaLabel: tr("Voltar: cancela a troca e reinicia {0}", from),
           onclick: () => st.fromWt && select(project, st.fromWt),
         });
   if (back) back.dataset.act = "back";
@@ -1447,8 +1453,8 @@ function renderWait(project: string, wt: Worktree) {
       ? el("button", {
           type: "button",
           className: "btn",
-          textContent: "Forçar",
-          title: "Envia SIGKILL aos processos sem esperar o prazo",
+          textContent: tr("Forçar"),
+          title: tr("Envia SIGKILL aos processos sem esperar o prazo"),
           onclick: (e: MouseEvent) => {
             if (e.detail > 1) return;
             st.forcing = "user";
@@ -1467,7 +1473,7 @@ function renderWait(project: string, wt: Worktree) {
     { className: "fact" },
     // O verbo da palheta da anterior (PARANDO); ENCERRA fica só para a prévia. No SIGKILL ele continua: a palheta ao lado diz como.
     // Os dois verbos empilhados: "Reiniciando" mais largo empurrava o Forçar para baixo do cursor.
-    el("span", { className: "what" }, el("span", { textContent: goingBack ? "Reiniciando" : "Parando" }), el("span", { className: "ghost", ariaHidden: "true", textContent: "Reiniciando" })),
+    el("span", { className: "what" }, el("span", { textContent: goingBack ? tr("Reiniciando") : tr("Parando") }), el("span", { className: "ghost", ariaHidden: "true", textContent: tr("Reiniciando") })),
     el("span", { className: "nm", textContent: proseName(st.from) }),
     el("span", { className: goingBack ? "onward hold" : "onward" }, icon(ARROW_ICON, "inline"), el("span", { className: "nm", textContent: next })),
   );
@@ -1477,9 +1483,9 @@ function renderWait(project: string, wt: Worktree) {
     // no instante em que se mirava nele).
     // A contagem entra com o Forçar: na troca típica (1–2 s), contar até um SIGKILL que não vem era ansiedade à toa.
     // "SIGKILL em [3 s]": sem o rótulo, a contagem lia como "a nova para em 3 s".
-    ...[back, st.forcing ? flap("kill", `strip:${project}`) : late ? el("span", { className: "count-to", textContent: "SIGKILL em" }) : null, late && !st.forcing ? countFlap(project, st) : null, force].filter((b) => b !== null),
+    ...[back, st.forcing ? flap("kill", `strip:${project}`) : late ? el("span", { className: "count-to", textContent: tr("SIGKILL em") }) : null, late && !st.forcing ? countFlap(project, st) : null, force].filter((b) => b !== null),
     // No SIGKILL não sobra botão: o que vem depois fica escrito, não só no title (na troca, o "→ fix/y" do fato já diz).
-    ...(st.forcing && goingBack ? [el("span", { className: "then", textContent: "reinicia em seguida" })] : []),
+    ...(st.forcing && goingBack ? [el("span", { className: "then", textContent: tr("reinicia em seguida") })] : []),
   );
   if (had) (switchingEl.querySelector<HTMLElement>(`[data-act="${had}"]`) ?? switchingEl).focus();
   // A faixa cresceu ou mudou (contagem e Forçar aos 2 s): a branch de destino pode ter ficado abaixo do piso.
@@ -1550,10 +1556,10 @@ function projectErrorSummary(error: string) {
   const side = error.startsWith("Front:") ? "Front" : "API";
   const raw = error.toLowerCase();
   const reason = raw.includes("not a git repository")
-    ? "a pasta não é um repositório git"
+    ? tr("a pasta não é um repositório git")
     : raw.includes("cannot change to") || raw.includes("no such file")
-      ? "repositório não encontrado"
-      : "não consegui ler as worktrees";
+      ? tr("repositório não encontrado")
+      : tr("não consegui ler as worktrees");
   return `${side}: ${reason}`;
 }
 
@@ -1582,11 +1588,11 @@ function lineButton(project: string, wt: Worktree) {
   const live = LIVE.includes(state);
   const ends = wouldStop(project, wt.id);
   const endsProcs = ends && procs(project, ends).length ? ` (${procs(project, ends).join(", ")})` : "";
-  const endsText = ends ? `Encerra ${ends.label}${endsProcs}` : "";
+  const endsText = ends ? tr("Encerra {0}{1}", ends.label, endsProcs) : "";
   const f = flap(state, `line:${k}`, flapText(project, wt, state));
   const git = gitSummary(TABS.flatMap((t) => (wt[t] ? [[TAB_LABEL[t], gitStates.get(wt[t]!.path)] as [string, GitState | undefined]] : [])));
   // A linha em serviço mostra ENCERRA enquanto o cursor (ou o foco) está em outra do mesmo projeto: o clique é destrutivo.
-  if (live) f.append(el("span", { className: "ends", textContent: "ENCERRA" }));
+  if (live) f.append(el("span", { className: "ends", textContent: tr("ENCERRA") }));
   const b = el(
     "button",
     {
@@ -1613,7 +1619,7 @@ function lineButton(project: string, wt: Worktree) {
   // não passa aria-description ao leitor de tela. Sem ele, a descrição é o title (nome, git e o mesmo "Encerra").
   if (ends) {
     const id = endsId(k);
-    b.append(el("span", { id, hidden: true, textContent: `Encerra ${spokenLabel(ends.label)}${endsProcs}` }));
+    b.append(el("span", { id, hidden: true, textContent: tr("Encerra {0}{1}", spokenLabel(ends.label), endsProcs) }));
     b.setAttribute("aria-describedby", id);
   }
   b.dataset.key = k;
@@ -1638,7 +1644,7 @@ const PENCIL = "M11 2.5 13.5 5 6 12.5H3.5V10ZM9.5 4 12 6.5";
 /** Lápis da linha: irmão do botão de trocar (botão dentro de botão é inválido). Rodando, fica aria-disabled com o motivo. */
 /** Lápis (editar) ou lixeira (remover) da linha: os dois só com a worktree parada, com o motivo quando não. */
 function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
-  const [verb, open, path] = kind === "edit" ? ["Editar", openEditDialog, PENCIL] : ["Remover", openRemoveDialog, TRASH_ICON];
+  const [verb, open, path] = kind === "edit" ? [tr("Editar"), openEditDialog, PENCIL] : [tr("Remover"), openRemoveDialog, TRASH_ICON];
   const busyNow = BUSY.includes(lineState(project, wt));
   const spoken = spokenLabel(wt.label);
   const b = el(
@@ -1647,8 +1653,8 @@ function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
       type: "button",
       className: `icon-btn ${kind}`,
       tabIndex: -1,
-      title: busyNow ? `${wt.label}, ${say(project, wt, lineState(project, wt))}: troque para outra worktree do projeto antes de ${verb.toLowerCase()}` : `${verb} ${wt.label}`,
-      ariaLabel: busyNow ? `${verb} ${spoken}: indisponível, ${say(project, wt, lineState(project, wt))}; troque para outra worktree do projeto antes` : `${verb} ${spoken}`,
+      title: busyNow ? tr("{0}, {1}: troque para outra worktree do projeto antes de {2}", wt.label, say(project, wt, lineState(project, wt)), verb.toLowerCase()) : `${verb} ${wt.label}`,
+      ariaLabel: busyNow ? tr("{0} {1}: indisponível, {2}; troque para outra worktree do projeto antes", verb, spoken, say(project, wt, lineState(project, wt))) : `${verb} ${spoken}`,
       onclick: () => {
         const fresh = findWt(project, wt.id);
         if (fresh && !BUSY.includes(lineState(project, fresh))) open(project, fresh);
@@ -1675,7 +1681,7 @@ function rowMenuItem(label: string, act: () => void, opts: { title?: string; key
       type: "button",
       className: "more-item",
       title: opts.blocked ?? opts.title ?? "",
-      ariaLabel: opts.blocked ? `${label}: indisponível; ${opts.blocked}` : null,
+      ariaLabel: opts.blocked ? tr("{0}: indisponível; {1}", label, opts.blocked) : null,
       onclick: () => {
         rowMenu.hidePopover();
         if (opts.blocked) headerNote(false, rowMenuFor?.project ?? null, opts.blocked);
@@ -1692,18 +1698,18 @@ function rowMenuItem(label: string, act: () => void, opts: { title?: string; key
 function openRowMenu(project: string, wt: Worktree, x: number, y: number) {
   rowMenuFor = { project, wt };
   const state = lineState(project, wt);
-  const blocked = (verb: string) => (BUSY.includes(state) ? `${wt.label}, ${say(project, wt, state)}: troque para outra worktree do projeto antes de ${verb}` : null);
+  const blocked = (verb: string) => (BUSY.includes(state) ? tr("{0}, {1}: troque para outra worktree do projeto antes de {2}", wt.label, say(project, wt, state), verb) : null);
   const isCurrent = currentKey() === key(project, wt.id);
   const target = { project, wt };
-  rowMenu.setAttribute("aria-label", `Ações de ${spokenLabel(wt.label)}`);
+  rowMenu.setAttribute("aria-label", tr("Ações de {0}", spokenLabel(wt.label)));
   rowMenu.replaceChildren(
     el("p", { className: "more-head", textContent: wt.label }),
-    ...(isCurrent ? [] : [rowMenuItem("Abrir", () => select(project, wt), { keys: "Enter" })]),
-    rowMenuItem("Abrir no editor", () => openInEditor(target), { title: wt[editorSide(wt)]!.path, keys: isCurrent ? "Ctrl+Shift+O" : undefined }),
-    rowMenuItem("Ver PR", () => viewPr(target), { title: `gh pr view ${tabBranch(wt)} --web` }),
+    ...(isCurrent ? [] : [rowMenuItem(tr("Abrir"), () => select(project, wt), { keys: "Enter" })]),
+    rowMenuItem(tr("Abrir no editor"), () => openInEditor(target), { title: wt[editorSide(wt)]!.path, keys: isCurrent ? "Ctrl+Shift+O" : undefined }),
+    rowMenuItem(tr("Ver PR"), () => viewPr(target), { title: `gh pr view ${tabBranch(wt)} --web` }),
     pullItem(project, wt, rowMenu),
-    rowMenuItem("Editar…", () => openEditDialog(project, wt), { blocked: blocked("editar") }),
-    rowMenuItem("Remover…", () => openRemoveDialog(project, wt), { blocked: blocked("remover") }),
+    rowMenuItem(tr("Editar…"), () => openEditDialog(project, wt), { blocked: blocked(tr("editar")) }),
+    rowMenuItem(tr("Remover…"), () => openRemoveDialog(project, wt), { blocked: blocked(tr("remover")) }),
   );
   rowMenu.showPopover();
   // Dentro da janela: abre para a esquerda ou para cima quando não cabe.
@@ -1748,17 +1754,17 @@ const PARALLEL_ICON = "M5.5 2.5h8v7h-8ZM5.5 6.5H2.5v7H11V9.5";
 
 /** Liga ou desliga o modo paralelo do projeto (grava no config). */
 async function toggleParallel(project: string) {
-  if (stopping.has(project)) return headerNote(false, project, "Troca em andamento · espere ela terminar");
+  if (stopping.has(project)) return headerNote(false, project, tr("Troca em andamento · espere ela terminar"));
   const on = !isParallel(project);
   // Com várias de pé, desligar para as outras: pede confirmação.
   if (!on && liveWts(project).length > 1) return confirmParallelOff(project);
   try {
     await invoke("set_parallel", { project, on });
   } catch (e) {
-    return headerNote(true, project, "Não gravei o modo paralelo", el("span", { className: "why", textContent: `· ${e}`, title: String(e) }));
+    return headerNote(true, project, tr("Não gravei o modo paralelo"), el("span", { className: "why", textContent: `· ${e}`, title: String(e) }));
   }
   await refresh();
-  headerNote(false, project, on ? "Modo paralelo ligado · as worktrees sobem juntas" : "Modo paralelo desligado");
+  headerNote(false, project, on ? tr("Modo paralelo ligado · as worktrees sobem juntas") : tr("Modo paralelo desligado"));
 }
 
 
@@ -1780,8 +1786,8 @@ function renderBoard() {
       {
         type: "button",
         className: "icon-btn",
-        title: p.error ? "Corrija o erro do projeto para criar worktrees" : `Nova worktree em ${p.name} (Ctrl+Shift+N)`,
-        ariaLabel: p.error ? `Nova worktree em ${p.name}: indisponível, corrija o erro do projeto` : `Nova worktree em ${p.name}`,
+        title: p.error ? tr("Corrija o erro do projeto para criar worktrees") : tr("Nova worktree em {0} (Ctrl+Shift+N)", p.name),
+        ariaLabel: p.error ? tr("Nova worktree em {0}: indisponível, corrija o erro do projeto", p.name) : tr("Nova worktree em {0}", p.name),
         // aria-disabled e não disabled: o teclado e o leitor de tela também chegam no motivo.
         onclick: () => !p.error && openAddDialog(p.name),
       },
@@ -1794,8 +1800,8 @@ function renderBoard() {
       {
         type: "button",
         className: "icon-btn parallel",
-        title: `Modo paralelo em ${p.name}: ${p.parallel ? "ligado, as worktrees sobem juntas" : "desligado, abrir uma encerra a outra"}`,
-        ariaLabel: `Modo paralelo em ${p.name}`,
+        title: tr("Modo paralelo em {0}: {1}", p.name, p.parallel ? tr("ligado, as worktrees sobem juntas") : tr("desligado, abrir uma encerra a outra")),
+        ariaLabel: tr("Modo paralelo em {0}", p.name),
         onclick: () => toggleParallel(p.name),
       },
       icon(PARALLEL_ICON),
@@ -1807,8 +1813,8 @@ function renderBoard() {
       {
         type: "button",
         className: "icon-btn",
-        title: p.error ? "Corrija o erro do projeto para remover worktrees" : `Remover worktrees de ${p.name}…`,
-        ariaLabel: p.error ? `Remover worktrees de ${p.name}: indisponível, corrija o erro do projeto` : `Remover worktrees de ${p.name}`,
+        title: p.error ? tr("Corrija o erro do projeto para remover worktrees") : tr("Remover worktrees de {0}…", p.name),
+        ariaLabel: p.error ? tr("Remover worktrees de {0}: indisponível, corrija o erro do projeto", p.name) : tr("Remover worktrees de {0}", p.name),
         onclick: () => !p.error && openBulkRemove(p.name),
       },
       icon(TRASH_ICON),
@@ -1825,8 +1831,8 @@ function renderBoard() {
           },
           el("summary", { textContent: projectErrorSummary(p.error) }),
           el("code", { textContent: p.error }),
-          el("p", {}, "Ajuste o caminho em ", el("code", { textContent: CONFIG_PATH }), " e volte para a janela: o painel relê sozinho."),
-          el("button", { type: "button", className: "btn small", textContent: "Abrir o config.json", onclick: () => invoke("open_config") }),
+          el("p", {}, tr("Ajuste o caminho em "), el("code", { textContent: CONFIG_PATH }), tr(" e volte para a janela: o painel relê sozinho.")),
+          el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") }),
         )
       : null;
     if (problem) keyFocusables(problem, `problem:${p.name}`);
@@ -1840,7 +1846,7 @@ function renderBoard() {
       {
         type: "button",
         className: "fold",
-        title: `${open ? "Recolher" : "Expandir"} ${p.name}${p.error && !open ? `\n${projectErrorSummary(p.error)}` : ""}`,
+        title: `${open ? tr("Recolher") : tr("Expandir")} ${p.name}${p.error && !open ? `\n${projectErrorSummary(p.error)}` : ""}`,
         onclick: () => {
           open ? collapsed.add(p.name) : collapsed.delete(p.name);
           save("collapsed", [...collapsed]);
@@ -1851,7 +1857,7 @@ function renderBoard() {
       icon(CHEVRON, "chev"),
       // o "+6" é para o olho; o leitor de tela ouve ", 6 ocultas" (os dois juntos falavam a contagem duas vezes)
       hidden ? el("span", { className: "count", textContent: `+${hidden}`, ariaHidden: "true" }) : null,
-      hidden ? el("span", { className: "sr", textContent: `, ${hidden} ocultas` }) : null,
+      hidden ? el("span", { className: "sr", textContent: tr(", {0} ocultas", hidden) }) : null,
     );
     fold.setAttribute("aria-expanded", String(open));
     fold.dataset.key = `fold:${p.name}`;
@@ -1874,9 +1880,9 @@ function renderBoard() {
         el(
           "details",
           { className: "problem", open: openProblems.has(CONFIG_PATH), ontoggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? openProblems.add(CONFIG_PATH) : openProblems.delete(CONFIG_PATH)) },
-          el("summary", { textContent: "O config tem um problema; o painel mostra a última leitura boa." }),
+          el("summary", { textContent: tr("O config tem um problema; o painel mostra a última leitura boa.") }),
           el("code", { textContent: configError }),
-          el("button", { type: "button", className: "btn small", textContent: "Abrir o config.json", onclick: () => invoke("open_config") }),
+          el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") }),
         ),
       ),
     );
@@ -1888,7 +1894,7 @@ function renderBoard() {
       el(
         "section",
         { className: "platform ghost" },
-        el("div", { className: "platform-head" }, el("h2", {}, el("span", { className: "tile", textContent: "Sem projeto" }))),
+        el("div", { className: "platform-head" }, el("h2", {}, el("span", { className: "tile", textContent: tr("Sem projeto") }))),
       ),
     );
   $("#sidebar-foot").hidden = !config.projects.length;
@@ -1982,7 +1988,7 @@ function renderRunning() {
         {
           type: "button",
           className: "other",
-          title: `Ir para ${p.name} / ${wt.label} (${spoken})`,
+          title: tr("Ir para {0} / {1} ({2})", p.name, wt.label, spoken),
           // Já está em serviço: selecionar não troca nada, só leva o terminal até ela.
           onclick: () => {
             const fresh = findWt(p.name, wt.id);
@@ -2036,7 +2042,7 @@ function fitHeader() {
   headerEl.classList.add("tight");
   fitHeaderOnce();
   // "Subir API" com o lado parado à mão é a única ação útil: ela fica antes do piso da branch (a 720 ia para o ⋯).
-  if (!haltTabEl.hidden && haltTabEl.dataset.label?.startsWith("Subir") && ceded(haltTabEl)) {
+  if (!haltTabEl.hidden && haltTabEl.dataset.label?.startsWith(tr("Subir")) && ceded(haltTabEl)) {
     branchFloor = BRANCH_MIN;
     fitHeaderOnce();
     branchFloor = BRANCH_FLOOR;
@@ -2168,7 +2174,7 @@ function renderTermNote() {
     termNoteEl.style.top = top;
     // Depois do Voltar, a que espera é a própria anterior: "Aguardando main parar" no terminal da main.
     const text =
-      active[env.project] === st.fromId ? `Reiniciando ${proseName(st.from)} · digitação liberada quando subir` : `Aguardando ${proseName(st.from)} parar · digitação liberada em seguida`;
+      active[env.project] === st.fromId ? tr("Reiniciando {0} · digitação liberada quando subir", proseName(st.from)) : tr("Aguardando {0} parar · digitação liberada em seguida", proseName(st.from));
     if (termNoteEl.textContent !== text) termNoteEl.textContent = text;
     // o texto daqui não é cópia do #last-stop: o canto recopia na próxima vez
     delete termNoteEl.dataset.src;
@@ -2346,7 +2352,7 @@ function announceDrops() {
     wasUp.set(k, up);
     const wt = findWt(project, id);
     if (!lost.length || !wt) continue;
-    const what = `${lost.map((t) => TAB_LABEL[t]).join(" e ")} ${lost.length > 1 ? "caíram" : "caiu"}`;
+    const what = `${lost.map((t) => TAB_LABEL[t]).join(tr(" e "))} ${lost.length > 1 ? tr("caíram") : tr("caiu")}`;
     const why = errorWhy(project, id, lost[0]);
     headerNote(true, project, what, noteWho(project, id, wt.label), why, upHere(project, id, lost), seeTerminal(project, id, lost[0]));
     notifyAway(project, wt.label, what, why);
@@ -2394,8 +2400,8 @@ async function pollStatus() {
       // Subiu numa porta que não é a atribuída: o projeto ignorou a variável (-p fixo no script, override do .env).
       const off = Object.values(panes).find((p) => portMismatch(p.assigned, p.port));
       if (off) {
-        const what = `${TAB_LABEL[off.tab]} subiu na ${off.port}, não na ${off.assigned}`;
-        const why = el("span", { className: "why", textContent: "· confira o parallelEnv", title: `O parallelEnv ${off.tab === "api" ? "da API" : "do Front"} precisa da variável que o servidor lê para a porta.` });
+        const what = tr("{0} subiu na {1}, não na {2}", TAB_LABEL[off.tab], off.port, off.assigned);
+        const why = el("span", { className: "why", textContent: tr("· confira o parallelEnv"), title: tr("O parallelEnv {0} precisa da variável que o servidor lê para a porta.", off.tab === "api" ? tr("da API") : tr("do Front")) });
         headerNote(true, project, what, noteWho(project, id, wt.label), why, seeTerminal(project, id, off.tab));
         notifyAway(project, wt.label, what, why);
       }
@@ -2487,7 +2493,7 @@ function renderPalette(reset = false) {
       ? items.map((it, i) => {
           const state = lineState(it.project, it.wt);
           const isCurrent = currentKey() === key(it.project, it.wt.id);
-          const label = el("span", { className: "label" }, ...labelNodes(it.wt.label), soloTag(it.wt), isCurrent ? el("span", { className: "tag", textContent: "ATUAL" }) : null);
+          const label = el("span", { className: "label" }, ...labelNodes(it.wt.label), soloTag(it.wt), isCurrent ? el("span", { className: "tag", textContent: tr("ATUAL") }) : null);
           const project = el("span", { className: "project", textContent: it.project });
           markHits(label, terms, it.wt.label.toLowerCase(), it.project.toLowerCase());
           markHits(project, terms, it.project.toLowerCase(), it.wt.label.toLowerCase());
@@ -2495,7 +2501,7 @@ function renderPalette(reset = false) {
           // Nome falado inteiro, com pausas e o lado: os spans juntos liam "hotfix/loginATUAL interno : rodando".
           // O que o Enter mata também na opção: a prévia ENCERRA é visual, e o rodapé só fala quando muda.
           const kills = wouldStop(it.project, it.wt.id);
-          li.setAttribute("aria-label", `${spokenLabel(it.wt.label)}${isCurrent ? ", atual" : ""}${soloSay(it.wt)}, ${it.project}: ${say(it.project, it.wt, state)}${kills ? `; encerra ${spokenLabel(kills.label)}` : ""}`);
+          li.setAttribute("aria-label", `${spokenLabel(it.wt.label)}${isCurrent ? tr(", atual") : ""}${soloSay(it.wt)}, ${it.project}: ${say(it.project, it.wt, state)}${kills ? tr("; encerra {0}", spokenLabel(kills.label)) : ""}`);
           // Tinta cheia só no que está em serviço (rodando, em movimento, a atual), como no painel.
           if (LIVE.includes(state) || isCurrent) li.classList.add("live");
           li.setAttribute("role", "option");
@@ -2506,10 +2512,10 @@ function renderPalette(reset = false) {
           el("li", {
             className: "none",
             textContent: terms.length
-              ? `Nenhuma worktree corresponde a "${paletteInput.value.trim()}".`
+              ? tr("Nenhuma worktree corresponde a \"{0}\".", paletteInput.value.trim())
               : config.projects.length
-                ? "Nenhuma worktree ainda."
-                : "Nenhum projeto ainda: Enter cria o primeiro.",
+                ? tr("Nenhuma worktree ainda.")
+                : tr("Nenhum projeto ainda: Enter cria o primeiro."),
           }),
         ]),
   );
@@ -2520,8 +2526,8 @@ function renderPalette(reset = false) {
   // Em paralelo, a de pé só é mostrada, e a parada sobe junto, sem encerrar nada.
   const par = !!items[sel] && isParallel(items[sel].project);
   const onActive = !!items[sel] && (active[items[sel].project] === items[sel].wt.id || (par && isLive(items[sel].project, items[sel].wt)));
-  paletteEnter.textContent = !config.projects.length ? "criar projeto" : onCurrent ? "já é a atual" : onActive ? "ir para" : par ? "subir junto" : "trocar";
-  paletteInput.placeholder = config.projects.length ? "Trocar de worktree…" : "Sem projeto: Enter cria o primeiro";
+  paletteEnter.textContent = !config.projects.length ? tr("criar projeto") : onCurrent ? tr("já é a atual") : onActive ? tr("ir para") : par ? tr("subir junto") : tr("trocar");
+  paletteInput.placeholder = config.projects.length ? tr("Trocar de worktree…") : tr("Sem projeto: Enter cria o primeiro");
   // Busca sem resultado: o Enter não faz nada, e o rodapé não promete.
   paletteEnter.hidden = (paletteEnter.previousElementSibling as HTMLElement).hidden = !items.length && !!config.projects.length;
   // A troca é destrutiva: diz o que o Enter vai encerrar.
@@ -2549,7 +2555,7 @@ function pathNodes(path: string): (Node | string)[] {
 function endsNote(wt: Worktree, project: string, inPalette = true): (Node | string)[] {
   const names = procs(project, wt);
   // O texto num span só: solto no flex, cada pedaço viraria um item e os espaços sumiriam.
-  const preview = flap("stop", "ends", "ENCERRA");
+  const preview = flap("stop", "ends", tr("ENCERRA"));
   preview.classList.add("preview");
   return [
     preview,
@@ -2557,10 +2563,10 @@ function endsNote(wt: Worktree, project: string, inPalette = true): (Node | stri
       "span",
       { className: "ends-text" },
       // A palheta ENCERRA é aria-hidden: sem o verbo, a região viva lia "main (node) em leilao".
-      el("span", { className: "sr", textContent: "Encerra " }),
+      el("span", { className: "sr", textContent: tr("Encerra ") }),
       el("strong", {}, ...labelNodes(wt.label)),
       ...(names.length ? [" ", el("span", { className: "procs", textContent: `(${names.join(", ")})` })] : []),
-      ...(inPalette ? [" em ", el("span", { className: "project", textContent: project })] : [", que está rodando."]),
+      ...(inPalette ? [tr(" em "), el("span", { className: "project", textContent: project })] : [tr(", que está rodando.")]),
     ),
   ];
 }
@@ -2623,13 +2629,13 @@ const asFormError = (err: unknown): FormError =>
 function worktreeErrorSummary(message: string): { field: "dir" | "base" | "branch"; text: string } {
   const raw = message.toLowerCase();
   if (raw.includes("invalid reference") || raw.includes("not a valid object name"))
-    return { field: "base", text: "A branch de origem não existe neste repositório." };
-  if (raw.includes("branch de origem")) return { field: "base", text: "Escolha a branch de origem." };
-  if (raw.includes("not a valid branch name")) return { field: "branch", text: "Nome de branch inválido." };
-  if (raw.includes("couldn't find remote ref")) return { field: "branch", text: "Essa branch não existe mais no origin." };
+    return { field: "base", text: tr("A branch de origem não existe neste repositório.") };
+  if (raw.includes(tr("branch de origem"))) return { field: "base", text: tr("Escolha a branch de origem.") };
+  if (raw.includes("not a valid branch name")) return { field: "branch", text: tr("Nome de branch inválido.") };
+  if (raw.includes("couldn't find remote ref")) return { field: "branch", text: tr("Essa branch não existe mais no origin.") };
   if (raw.includes("already checked out") || raw.includes("already used by worktree"))
-    return { field: "branch", text: "Essa branch já está aberta em outra worktree." };
-  if (raw.includes("already exists")) return { field: "dir", text: "Já existe uma pasta com esse nome no diretório." };
+    return { field: "branch", text: tr("Essa branch já está aberta em outra worktree.") };
+  if (raw.includes("already exists")) return { field: "dir", text: tr("Já existe uma pasta com esse nome no diretório.") };
   return { field: "dir", text: message };
 }
 
@@ -2658,13 +2664,13 @@ function clearInvalid(form: HTMLFormElement) {
   for (const f of form.querySelectorAll("[aria-errormessage]")) document.getElementById(f.getAttribute("aria-errormessage")!)!.textContent = "";
 }
 
-const REQUIRED: Record<string, string> = { branch: "Informe a branch.", name: "Dê um nome ao projeto." };
+const REQUIRED: Record<string, string> = { branch: tr("Informe a branch."), name: tr("Dê um nome ao projeto.") };
 /** Campo obrigatório vazio: mensagem do app ao lado do campo, no lugar da bolha nativa do WebKit (os forms têm novalidate). */
 function missingField(form: HTMLFormElement, fallback: HTMLElement) {
   const bad = form.querySelector<HTMLInputElement>("input:invalid");
   if (!bad) return false;
   const msg = document.getElementById(bad.getAttribute("aria-errormessage") ?? "") ?? bad.closest("fieldset")?.querySelector<HTMLElement>(".side-error") ?? fallback;
-  msg.textContent = REQUIRED[bad.name] ?? (bad.name.endsWith("-dir") ? "Informe o diretório das worktrees." : "Informe o repositório.");
+  msg.textContent = REQUIRED[bad.name] ?? (bad.name.endsWith("-dir") ? tr("Informe o diretório das worktrees.") : tr("Informe o repositório."));
   const more = bad.closest("details");
   if (more) more.open = true;
   markInvalid(bad, msg);
@@ -2701,7 +2707,7 @@ const prNumber = (t: Tab) => prs.find((p) => !p.fork && p.branch === branchInput
 function addSubmitLabel() {
   const created = TABS.some((t) => sideMsg(t).classList.contains("ok"));
   const left = TABS.filter((t) => sideCheck(t).checked);
-  return created && left.length === 1 ? (left[0] === "api" ? "Criar na API" : "Criar no Front") : "Criar worktree";
+  return created && left.length === 1 ? (left[0] === "api" ? tr("Criar na API") : tr("Criar no Front")) : tr("Criar worktree");
 }
 
 function openAddDialog(project?: string) {
@@ -2727,7 +2733,7 @@ async function loadDefaults() {
     sideCheck(t).checked = true;
     sideCheck(t).disabled = false;
     sideDir(t).value = "";
-    sideBase(t).replaceChildren(el("option", { value: "", textContent: "Carregando…" }));
+    sideBase(t).replaceChildren(el("option", { value: "", textContent: tr("Carregando…") }));
     sideMsg(t).textContent = "";
     sideMsg(t).classList.remove("ok");
     sideBox(t).querySelector<HTMLDetailsElement>("details")!.open = false;
@@ -2753,7 +2759,7 @@ async function loadDefaults() {
       sideDir(t).value = d.Ok.dir;
       const group = (label: string, list: string[]) =>
         el("optgroup", { label }, ...list.map((b) => el("option", { value: b, textContent: b })));
-      sideBase(t).replaceChildren(group("Locais", d.Ok.local), ...(d.Ok.remote.length ? [group("Remotas", d.Ok.remote)] : []));
+      sideBase(t).replaceChildren(group(tr("Locais"), d.Ok.local), ...(d.Ok.remote.length ? [group(tr("Remotas"), d.Ok.remote)] : []));
       sideBase(t).value = d.Ok.defaultBase;
     }
   }
@@ -2764,7 +2770,7 @@ async function loadDefaults() {
  *  outro erro fica numa linha embaixo, com a saída crua no detalhe. Não segura o diálogo: a lista chega quando o gh responde. */
 async function loadPrs(req: number) {
   prs = [];
-  prSel.replaceChildren(el("option", { value: "", textContent: "Carregando as PRs abertas…" }));
+  prSel.replaceChildren(el("option", { value: "", textContent: tr("Carregando as PRs abertas…") }));
   prSel.disabled = true;
   prHint.hidden = true;
   type Lists = Record<Tab, { Ok: GhPr[] } | { Err: string }>;
@@ -2781,14 +2787,14 @@ async function loadPrs(req: number) {
   if (prRow.hidden) return;
   prs = mergePrs(Object.fromEntries(TABS.flatMap((t) => { const r = got[t]; return "Ok" in r ? [[t, r.Ok]] : []; })));
   prSel.replaceChildren(
-    el("option", { value: "", textContent: prs.length ? "Nenhuma" : "Nenhuma PR aberta" }),
+    el("option", { value: "", textContent: prs.length ? tr("Nenhuma") : tr("Nenhuma PR aberta") }),
     ...prs.map((p, i) => el("option", { value: String(i), textContent: prLabel(p), disabled: p.fork })),
   );
   // Depois de um erro parcial a branch fica travada: a PR também.
   prSel.disabled = !prs.length || branchInput.readOnly;
   if (errs.length) {
-    const who = errs.map((e) => (e.t === "api" ? "da API" : "do Front")).join(" e ");
-    prHint.replaceChildren(`Não consegui listar as PRs ${who}.`, el("details", {}, el("summary", { textContent: "Detalhe" }), ...errs.map((e) => el("code", { textContent: e.err }))));
+    const who = errs.map((e) => (e.t === "api" ? tr("da API") : tr("do Front"))).join(tr(" e "));
+    prHint.replaceChildren(tr("Não consegui listar as PRs {0}.", who), el("details", {}, el("summary", { textContent: tr("Detalhe") }), ...errs.map((e) => el("code", { textContent: e.err }))));
     prHint.hidden = false;
   }
   syncSides();
@@ -2818,7 +2824,7 @@ function syncSides() {
     const base = pr ? `PR #${pr}` : sideBase(t).value;
     sideBox(t)
       .querySelector(".preview")!
-      .replaceChildren(...(dir ? [...pathNodes(`${dir}/${branch}`), ...(base ? [icon(FROM_ICON, "inline"), base] : [])] : ["Carregando…"]));
+      .replaceChildren(...(dir ? [...pathNodes(`${dir}/${branch}`), ...(base ? [icon(FROM_ICON, "inline"), base] : [])] : [tr("Carregando…")]));
   }
 }
 
@@ -2827,7 +2833,7 @@ addForm.addEventListener("input", syncSides);
 addForm.addEventListener("change", syncSides);
 for (const t of TABS) {
   sideBox(t).querySelector<HTMLButtonElement>(".pick")!.addEventListener("click", async () => {
-    const dir = await pickFolder({ directory: true, defaultPath: sideDir(t).value || undefined, title: `Diretório das worktrees (${TAB_LABEL[t]})` });
+    const dir = await pickFolder({ directory: true, defaultPath: sideDir(t).value || undefined, title: tr("Diretório das worktrees ({0})", TAB_LABEL[t]) });
     if (typeof dir === "string") {
       sideDir(t).value = dir;
       syncSides();
@@ -2848,12 +2854,12 @@ addForm.addEventListener("submit", async (e) => {
   clearInvalid(addForm);
   for (const t of TABS) if (!sideMsg(t).classList.contains("ok")) sideMsg(t).textContent = "";
   if (!api && !front) {
-    addError.textContent = "Marque API, Front ou os dois.";
+    addError.textContent = tr("Marque API, Front ou os dois.");
     return;
   }
   if (missingField(addForm, addError)) return;
   const submit = e.submitter as HTMLButtonElement;
-  setBusy(submit, "Criando…");
+  setBusy(submit, tr("Criando…"));
   try {
     await invoke("add_worktree", { project, branch, api, front });
     addDialog.close();
@@ -2865,7 +2871,7 @@ addForm.addEventListener("submit", async (e) => {
     for (const t of fe.created) {
       sideCheck(t).checked = false;
       sideCheck(t).disabled = true;
-      sideMsg(t).textContent = `Já criada em ${sideDir(t).value.replace(/\/+$/, "")}/${branch}.`;
+      sideMsg(t).textContent = tr("Já criada em {0}/{1}.", sideDir(t).value.replace(/\/+$/, ""), branch);
       sideMsg(t).classList.add("ok");
     }
     syncSides();
@@ -2908,7 +2914,7 @@ const ePart = <T extends HTMLElement>(t: Tab, sel: string) => eBox(t).querySelec
 const eMsg = (t: Tab) => ePart<HTMLElement>(t, ".side-error");
 const otherTab = (t: Tab): Tab => (t === "api" ? "front" : "api");
 /** "na API", "no Front". */
-const inSide = (t: Tab) => (t === "api" ? "na API" : "no Front");
+const inSide = (t: Tab) => (t === "api" ? tr("na API") : tr("no Front"));
 
 /** O que o diálogo está editando; `info` chega depois de abrir (o git pode demorar). */
 let editing: { project: string; wt: Worktree; branches: Record<Tab, string>; divergent: boolean; info: Partial<Record<Tab, SideInfo>> } | null = null;
@@ -2946,7 +2952,7 @@ function openEditDialog(project: string, wt: Worktree) {
       const own = splitStart(side.startCommand !== side.projectStart ? (side.startCommand ?? "") : "");
       const cmd = editField<HTMLInputElement>(`${t}-cmd`);
       // "padrão do projeto: npm run dev": começando pelo script, parecia valor digitado. Vazio, o prefixo sai (CSS) e o placeholder diz o comando inteiro.
-      cmd.placeholder = side.projectStart ? `padrão do projeto: ${side.projectStart}` : "Sem comando: abre só o shell";
+      cmd.placeholder = side.projectStart ? tr("padrão do projeto: {0}", side.projectStart) : tr("Sem comando: abre só o shell");
       cmd.value = own.script;
       setPm(ePm(t), own.script ? own.pm : project.pm);
       // Renomear é a tarefa comum: o comando fica recolhido, salvo quando é próprio (aí é informação, não opção).
@@ -2961,14 +2967,14 @@ function openEditDialog(project: string, wt: Worktree) {
     const opts: HTMLOptionElement[] = [];
     if (!side) {
       const mine = otherTab(t);
-      opts.push(el("option", { value: "keep", textContent: `Sem ${TAB_LABEL[t]}` }));
-      opts.push(el("option", { value: "create", textContent: `Criar ${branches[mine]} ${inSide(t)}` }));
+      opts.push(el("option", { value: "keep", textContent: tr("Sem {0}", TAB_LABEL[t]) }));
+      opts.push(el("option", { value: "create", textContent: tr("Criar {0} {1}", branches[mine], inSide(t)) }));
       for (const solo of proj.worktrees.filter((w) => !w[mine] && w[t])) {
         const running = BUSY.includes(lineState(project, solo));
-        opts.push(el("option", { value: `with:${solo.label}`, textContent: `Parear com ${solo.label}${running ? " (rodando)" : ""}`, disabled: running }));
+        opts.push(el("option", { value: `with:${solo.label}`, textContent: tr("Parear com {0}{1}", solo.label, running ? tr(" (rodando)") : ""), disabled: running }));
       }
     } else if (t === "front" && divergent) {
-      opts.push(el("option", { value: "keep", textContent: "Pareada com a API" }), el("option", { value: "unpair", textContent: "Desfazer o par" }));
+      opts.push(el("option", { value: "keep", textContent: tr("Pareada com a API") }), el("option", { value: "unpair", textContent: tr("Desfazer o par") }));
     }
     pairSel.replaceChildren(...opts);
     pairSel.value = "keep";
@@ -3009,7 +3015,7 @@ async function loadEditInfo(req: number) {
 async function loadCreateDefaults(t: Tab) {
   const req = editReq;
   const base = editField<HTMLSelectElement>(`${t}-base`);
-  base.replaceChildren(el("option", { value: "", textContent: "Carregando…" }));
+  base.replaceChildren(el("option", { value: "", textContent: tr("Carregando…") }));
   try {
     const d = (await invoke<Defaults>("worktree_defaults", { project: editing!.project }))[t];
     if (req !== editReq) return;
@@ -3020,7 +3026,7 @@ async function loadCreateDefaults(t: Tab) {
     }
     editField<HTMLInputElement>(`${t}-new-dir`).value = d.Ok.dir;
     const group = (label: string, list: string[]) => el("optgroup", { label }, ...list.map((b) => el("option", { value: b, textContent: b })));
-    base.replaceChildren(group("Locais", d.Ok.local), ...(d.Ok.remote.length ? [group("Remotas", d.Ok.remote)] : []));
+    base.replaceChildren(group(tr("Locais"), d.Ok.local), ...(d.Ok.remote.length ? [group(tr("Remotas"), d.Ok.remote)] : []));
     base.value = d.Ok.defaultBase;
   } catch (err) {
     if (req === editReq) eMsg(t).textContent = String(err);
@@ -3043,18 +3049,18 @@ function syncEdit() {
       const up = ed.info[t]?.upstream;
       const renamed = newBranch(t) !== ed.branches[t];
       ePart<HTMLElement>(t, ".upstream").hidden = !(up && renamed);
-      if (up && renamed) ePart<HTMLElement>(t, ".upstream").textContent = `A remota ${up} continua com o nome antigo; o próximo push cria ${nb}.`;
+      if (up && renamed) ePart<HTMLElement>(t, ".upstream").textContent = tr("A remota {0} continua com o nome antigo; o próximo push cria {1}.", up, nb);
     }
     // "Criar <branch> no Front" acompanha o nome que está sendo digitado.
     const createOpt = editField<HTMLSelectElement>(`${t}-pair`).querySelector<HTMLOptionElement>('option[value="create"]');
-    if (createOpt) createOpt.textContent = `Criar ${newBranch(otherTab(t)) || "<branch>"} ${inSide(t)}`;
+    if (createOpt) createOpt.textContent = tr("Criar {0} {1}", newBranch(otherTab(t)) || "<branch>", inSide(t));
     const creating = editField<HTMLSelectElement>(`${t}-pair`).value === "create";
     ePart<HTMLElement>(t, ".create").hidden = !creating;
     if (creating) {
       const dir = editField<HTMLInputElement>(`${t}-new-dir`).value.trim().replace(/\/+$/, "");
       const base = editField<HTMLSelectElement>(`${t}-base`).value;
       const nb = newBranch(otherTab(t)) || "<branch>";
-      ePart<HTMLElement>(t, ".create > .preview").replaceChildren(...(dir ? [...pathNodes(`${dir}/${nb}`), ...(base ? [icon(FROM_ICON, "inline"), base] : [])] : ["Carregando…"]));
+      ePart<HTMLElement>(t, ".create > .preview").replaceChildren(...(dir ? [...pathNodes(`${dir}/${nb}`), ...(base ? [icon(FROM_ICON, "inline"), base] : [])] : [tr("Carregando…")]));
     }
   }
 }
@@ -3103,7 +3109,7 @@ for (const t of TABS) {
   for (const [name, pick] of [[`${t}-dir`, ".move-dir .pick"], [`${t}-new-dir`, ".create .pick"]]) {
     ePart<HTMLButtonElement>(t, pick).addEventListener("click", async () => {
       const input = editField<HTMLInputElement>(name);
-      const dir = await pickFolder({ directory: true, defaultPath: input.value || undefined, title: `Diretório (${TAB_LABEL[t]})` });
+      const dir = await pickFolder({ directory: true, defaultPath: input.value || undefined, title: tr("Diretório ({0})", TAB_LABEL[t]) });
       if (typeof dir === "string") {
         input.value = dir;
         syncEdit();
@@ -3127,7 +3133,7 @@ editForm.addEventListener("submit", async (e) => {
   // Branch vazia: a mensagem ao lado do campo, como nos outros formulários.
   for (const t of TABS) {
     if (ed.wt[t] && !newBranch(t)) {
-      branchMsg(t).textContent = "Informe a branch.";
+      branchMsg(t).textContent = tr("Informe a branch.");
       return markInvalid(branchInput(t), branchMsg(t));
     }
   }
@@ -3150,7 +3156,7 @@ editForm.addEventListener("submit", async (e) => {
     : choice === "create"
       ? { kind: "create", dir: editField<HTMLInputElement>(`${pairT}-new-dir`).value, base: editField<HTMLSelectElement>(`${pairT}-base`).value }
       : { kind: choice as "keep" | "unpair" };
-  setBusy(submit, "Salvando…");
+  setBusy(submit, tr("Salvando…"));
   try {
     await invoke("edit_worktree", { req: { project: ed.project, api: sideReq("api"), front: sideReq("front"), pair } });
   } catch (err) {
@@ -3173,7 +3179,7 @@ editForm.addEventListener("submit", async (e) => {
     }
     return;
   } finally {
-    clearBusy(submit, "Salvar");
+    clearBusy(submit, tr("Salvar"));
   }
   await afterEdit(ed, pair);
 });
@@ -3209,7 +3215,7 @@ async function afterEdit(ed: NonNullable<typeof editing>, pair: PairChange) {
     current = { project, wt: newWt };
     ensureEnv(project, newWt);
   }
-  headerNote(false, null, newWt && newWt.label !== wt.label ? `Editada: ${wt.label} → ${newWt.label}` : `Editada: ${wt.label}`);
+  headerNote(false, null, newWt && newWt.label !== wt.label ? tr("Editada: {0} → {1}", wt.label, newWt.label) : tr("Editada: {0}", wt.label));
   render();
   byKey(`edit:${newKey}`)?.focus();
 }
@@ -3236,7 +3242,7 @@ let revealVars = false;
 revealBtn.addEventListener("click", () => {
   revealVars = !revealVars;
   revealBtn.setAttribute("aria-pressed", String(revealVars));
-  revealBtn.textContent = revealVars ? "Ocultar variáveis" : "Revelar variáveis";
+  revealBtn.textContent = revealVars ? tr("Ocultar variáveis") : tr("Revelar variáveis");
   renderPortVars();
 });
 let portsAsk: { project: string; wt: Worktree; def: Ports; taken: Set<number>; resolve: (p: Ports | "cancel") => void } | null = null;
@@ -3253,7 +3259,7 @@ function askPorts(project: string, wt: Worktree, proposal: Ports, def: Ports, ta
       const has = !!wt[t]?.startCommand;
       portBox(t).hidden = !has;
       portInput(t).value = has && proposal[t] !== null ? String(proposal[t]) : "";
-      portBox(t).querySelector(".default")!.textContent = def[t] === null ? "Porta padrão desconhecida: diga em qual sobe." : `Padrão ${def[t]}, tomada por outra worktree ou programa.`;
+      portBox(t).querySelector(".default")!.textContent = def[t] === null ? tr("Porta padrão desconhecida: diga em qual sobe.") : tr("Padrão {0}, tomada por outra worktree ou programa.", def[t]);
     }
     portsError.textContent = "";
     clearInvalid(portsForm);
@@ -3283,16 +3289,16 @@ function portProblems(ports: Ports): Record<Tab, string> {
     out[t] =
       templateError(tpl) ??
       (n === null || !Number.isInteger(n) || n < 1024 || n > 65535
-        ? "Porta entre 1024 e 65535."
+        ? tr("Porta entre 1024 e 65535.")
         : t === "front" && n === ports.api
-          ? "A mesma porta da API."
+          ? tr("A mesma porta da API.")
           : n !== def[t] && !movesOwnPort(tpl, t)
-            ? `Sem variável com {${t}Port} no parallelEnv ${t === "api" ? "da API" : "do Front"}: ele subiria na ${def[t] ?? "padrão"} assim mesmo.`
+            ? tr("Sem variável com {{0}Port} no parallelEnv {1}: ele subiria na {2} assim mesmo.", t, t === "api" ? tr("da API") : tr("do Front"), def[t] ?? tr("padrão"))
             : "");
   }
   // O Front de um par precisa saber a API nova; sem {apiPort} ele falaria com a da outra worktree.
   if (!out.front && !portBox("front").hidden && wt.api && ports.api !== def.api && !Object.values(wt.front!.parallelEnv).some((v) => v.includes("{apiPort}")))
-    out.front = `O Front falaria com a API na ${def.api ?? "padrão"}: ponha {apiPort} no parallelEnv do Front.`;
+    out.front = tr("O Front falaria com a API na {0}: ponha {apiPort} no parallelEnv do Front.", def.api ?? tr("padrão"));
   return out;
 }
 
@@ -3308,8 +3314,8 @@ function renderPortVars() {
     const vars = Object.entries(fill(wt[t]!.parallelEnv, ports));
     const talks = t === "front" && wt.api && ports.api !== null && Object.values(wt.front!.parallelEnv).some((v) => v.includes("{apiPort}"));
     portBox(t).querySelector(".vars")!.replaceChildren(
-      ...(vars.length ? vars.map(([k, v]) => el("code", { textContent: `${k}=${revealVars ? v : "••••••"}` })) : [el("span", { textContent: "Nenhuma variável no parallelEnv." })]),
-      ...(talks ? [el("span", { className: "talks", textContent: `Front → API na ${ports.api}` })] : []),
+      ...(vars.length ? vars.map(([k, v]) => el("code", { textContent: `${k}=${revealVars ? v : "••••••"}` })) : [el("span", { textContent: tr("Nenhuma variável no parallelEnv.") })]),
+      ...(talks ? [el("span", { className: "talks", textContent: tr("Front → API na {0}", ports.api) })] : []),
     );
     // Ao digitar, o erro aparece sem roubar o foco; o campo só fica marcado no envio.
     portMsg(t).textContent = problems[t];
@@ -3336,7 +3342,7 @@ portsForm.addEventListener("submit", async (e) => {
   if (busyAt) {
     const n = ports[busyAt]!;
     const who = runningOthers().find(({ wt }) => TABS.some((t) => envs.get(key(ask.project, wt.id))?.panes[t]?.port === n));
-    portMsg(busyAt).textContent = `${n} está ocupada ${who ? `por ${who.p.name.toUpperCase()} / ${who.wt.label}` : "por outro programa"}.`;
+    portMsg(busyAt).textContent = tr("{0} está ocupada {1}.", n, who ? tr("por {0} / {1}", who.p.name.toUpperCase(), who.wt.label) : tr("por outro programa"));
     return markInvalid(portInput(busyAt), portMsg(busyAt));
   }
   if (portsAsk !== ask) return;
@@ -3372,7 +3378,7 @@ function confirmParallelOff(project: string) {
       return el("p", { className: "preview" }, el("strong", {}, ...labelNodes(w.label)), ...(names.length ? [" ", el("span", { className: "procs", textContent: `(${names.join(", ")})` })] : []));
     }),
   );
-  parallelOffForm.querySelector(".keeps")!.replaceChildren(...(kept ? ["Fica rodando: ", el("strong", {}, ...labelNodes(kept.label)), "."] : []));
+  parallelOffForm.querySelector(".keeps")!.replaceChildren(...(kept ? [tr("Fica rodando: "), el("strong", {}, ...labelNodes(kept.label)), "."] : []));
   parallelOffDialog.showModal();
   // Destrutivo: o foco começa no Cancelar, como no Remover.
   parallelOffForm.querySelector<HTMLButtonElement>('button[value="cancel"]')!.focus();
@@ -3385,7 +3391,7 @@ parallelOffForm.addEventListener("submit", async (e) => {
   try {
     await invoke("set_parallel", { project, on: false });
   } catch (err) {
-    return headerNote(true, project, "Não gravei o modo paralelo", el("span", { className: "why", textContent: `· ${err}`, title: String(err) }));
+    return headerNote(true, project, tr("Não gravei o modo paralelo"), el("span", { className: "why", textContent: `· ${err}`, title: String(err) }));
   }
   await refresh();
   // Relidas agora: a lista do diálogo pode ter mudado enquanto ele estava aberto.
@@ -3394,7 +3400,7 @@ parallelOffForm.addEventListener("submit", async (e) => {
     const env = envs.get(key(project, w.id));
     return env && haltTabs(project, w, env, Object.keys(env.panes) as Tab[]);
   }));
-  headerNote(false, project, "Modo paralelo desligado", off.length ? ` · ${off.length} ${off.length > 1 ? "paradas" : "parada"}` : "");
+  headerNote(false, project, tr("Modo paralelo desligado"), off.length ? ` · ${off.length} ${off.length > 1 ? tr("paradas") : tr("parada")}` : "");
 });
 
 parallelOffDialog.addEventListener("close", () => (parallelOff = null));
@@ -3421,7 +3427,7 @@ function openRemoveDialog(project: string, wt: Worktree) {
   removeForm.querySelector(".where")!.replaceChildren(el("span", { className: "project", textContent: project }), " / ", ...labelNodes(wt.label));
   removeForm.querySelector(".paths")!.replaceChildren(...sides.map((t) => el("p", { className: "preview" }, el("strong", { textContent: `${TAB_LABEL[t]}: ` }), ...pathNodes(wt[t]!.path))));
   removeForm.querySelector<HTMLElement>(".closes")!.hidden = !envs.has(key(project, wt.id));
-  removeForm.querySelector(".branch-name")!.textContent = [...new Set(sides.map((t) => branches[t]))].join(" e ");
+  removeForm.querySelector(".branch-name")!.textContent = [...new Set(sides.map((t) => branches[t]))].join(tr(" e "));
   removeBranch.checked = false;
   removeError.textContent = "";
   removeOk.disabled = false;
@@ -3440,11 +3446,11 @@ removeForm.addEventListener("submit", async (e) => {
   removeError.textContent = "";
   const state = lineState(project, wt);
   if (BUSY.includes(state)) {
-    removeError.textContent = `${wt.label}, ${say(project, wt, state)}: troque para outra worktree do projeto antes de remover.`;
+    removeError.textContent = tr("{0}, {1}: troque para outra worktree do projeto antes de remover.", wt.label, say(project, wt, state));
     return;
   }
   const side = (t: Tab) => (wt[t] ? { path: wt[t]!.path, branch: ed.branches[t] } : null);
-  setBusy(removeOk, "Removendo…");
+  setBusy(removeOk, tr("Removendo…"));
   let notes: string[];
   try {
     notes = await invoke<string[]>("remove_worktree", { req: { project, api: side("api"), front: side("front"), deleteBranch: removeBranch.checked } });
@@ -3459,10 +3465,10 @@ removeForm.addEventListener("submit", async (e) => {
     }
     return;
   } finally {
-    clearBusy(removeOk, "Remover");
+    clearBusy(removeOk, tr("Remover"));
   }
   await forgetWorktree(project, wt);
-  headerNote(false, null, [`Removida: ${wt.label}`, ...notes].join(" · "));
+  headerNote(false, null, [tr("Removida: {0}", wt.label), ...notes].join(" · "));
   render();
   removeDialog.close();
 });
@@ -3510,10 +3516,10 @@ function syncTray() {
   if (current) {
     const { project, wt } = current;
     const live = isLive(project, wt);
-    entries.push(trayItem(live ? "stop" : "start", `${live ? "Parar" : "Subir"} ${project} / ${wt.label}`, !stopping.has(project)));
+    entries.push(trayItem(live ? "stop" : "start", `${live ? tr("Parar") : tr("Subir")} ${project} / ${wt.label}`, !stopping.has(project)));
   }
-  if (update) entries.unshift(trayItem("update", `Hotswap ${update.version} disponível…`), { kind: "separator" });
-  entries.push(trayItem("palette", "Trocar de worktree… (Ctrl+Shift+K)"), trayItem("new", "Nova worktree…", config.projects.length > 0));
+  if (update) entries.unshift(trayItem("update", tr("Hotswap {0} disponível…", update.version)), { kind: "separator" });
+  entries.push(trayItem("palette", tr("Trocar de worktree… (Ctrl+Shift+K)")), trayItem("new", tr("Nova worktree…"), config.projects.length > 0));
   if (config.projects.length) entries.push({ kind: "separator" });
   for (const p of config.projects) {
     const items = p.worktrees.map((wt) => {
@@ -3522,7 +3528,7 @@ function syncTray() {
       const mark = isLive(p.name, wt) ? "● " : here ? "○ " : "    ";
       return trayItem(`wt:${JSON.stringify([p.name, wt.id])}`, `${mark}${wt.label}`, !p.error);
     });
-    entries.push({ kind: "submenu", label: trayText(`${p.name}${p.parallel ? " · paralelo" : ""}`), items: items.length ? items : [trayItem("none", "Nenhuma worktree", false)] });
+    entries.push({ kind: "submenu", label: trayText(`${p.name}${p.parallel ? tr(" · paralelo") : ""}`), items: items.length ? items : [trayItem("none", tr("Nenhuma worktree"), false)] });
   }
   const json = JSON.stringify(entries);
   if (json === trayJson) return;
@@ -3534,7 +3540,7 @@ function syncTray() {
 listen<string>("tray", ({ payload }) => {
   if (document.querySelector("dialog[open]")) return;
   if (payload === "palette") return palette.hidden && openPalette();
-  if (payload === "update") return update && openRelease();
+  if (payload === "update") return installUpdate();
   if (payload === "new") return openAddDialog(current?.project);
   if (payload === "stop" || payload === "start") return toggleRun(true, payload);
   if (payload.startsWith("wt:")) {
@@ -3568,12 +3574,12 @@ function syncBulk() {
   bulkAll.disabled = !open.length;
   bulkAll.checked = !!open.length && n === open.length;
   bulkAll.indeterminate = n > 0 && n < open.length;
-  if (!isBusy(bulkOk)) bulkOk.textContent = n ? `Remover ${n}` : "Remover";
+  if (!isBusy(bulkOk)) bulkOk.textContent = n ? tr("Remover {0}", n) : tr("Remover");
   bulkOk.disabled = !n;
 }
 
 /** Uma linha por worktree; as que não podem sair (de pé, pasta principal) vêm desmarcadas e travadas, com o motivo. */
-const MAIN_WHY = "· pasta principal do repositório: o git não remove";
+const MAIN_WHY = tr("· pasta principal do repositório: o git não remove");
 
 function bulkRow(project: string, wt: Worktree) {
   const box = document.createElement("input");
@@ -3584,7 +3590,7 @@ function bulkRow(project: string, wt: Worktree) {
   const state = lineState(project, wt);
   if (BUSY.includes(state)) {
     box.disabled = true;
-    why.textContent = `· ${say(project, wt, state)}: troque antes`;
+    why.textContent = tr("· {0}: troque antes", say(project, wt, state));
   } else if (bulkMains.has(wt.id)) {
     box.disabled = true;
     why.textContent = MAIN_WHY;
@@ -3595,7 +3601,7 @@ function bulkRow(project: string, wt: Worktree) {
 function openBulkRemove(project: string) {
   const proj = config.projects.find((p) => p.name === project);
   if (!proj) return;
-  if (!proj.worktrees.length) return headerNote(false, project, "Nenhuma worktree para remover");
+  if (!proj.worktrees.length) return headerNote(false, project, tr("Nenhuma worktree para remover"));
   const req = ++bulkReq;
   bulk = { project, req };
   bulkMains.clear();
@@ -3603,7 +3609,7 @@ function openBulkRemove(project: string) {
   bulkList.replaceChildren(...proj.worktrees.map((wt) => bulkRow(project, wt)));
   bulkBranch.checked = false;
   bulkError.replaceChildren();
-  clearBusy(bulkOk, "Remover");
+  clearBusy(bulkOk, tr("Remover"));
   syncBulk();
   bulkDialog.showModal();
   // Destrutivo: o foco começa no Cancelar, como no Remover.
@@ -3644,7 +3650,7 @@ bulkForm.addEventListener("submit", async (e) => {
   const picked = bulkPicked().map((b) => b.value);
   if (!picked.length) return;
   bulkError.replaceChildren();
-  setBusy(bulkOk, "Removendo…");
+  setBusy(bulkOk, tr("Removendo…"));
   const removed: string[] = [];
   const failed: string[] = [];
   const notes: string[] = [];
@@ -3653,7 +3659,7 @@ bulkForm.addEventListener("submit", async (e) => {
     if (!wt) continue;
     const state = lineState(project, wt);
     if (BUSY.includes(state)) {
-      failed.push(`${wt.label}: ${say(project, wt, state)}; troque para outra worktree antes.`);
+      failed.push(tr("{0}: {1}; troque para outra worktree antes.", wt.label, say(project, wt, state)));
       continue;
     }
     const [api, front] = id.split("|");
@@ -3669,10 +3675,10 @@ bulkForm.addEventListener("submit", async (e) => {
       if (fe.created.length) await forgetWorktree(project, wt, false);
     }
   }
-  clearBusy(bulkOk, "Remover");
+  clearBusy(bulkOk, tr("Remover"));
   await refresh();
   render();
-  if (removed.length) headerNote(false, project, [`Removidas: ${removed.join(", ")}`, ...notes].join(" · "));
+  if (removed.length) headerNote(false, project, [tr("Removidas: {0}", removed.join(", ")), ...notes].join(" · "));
   if (!failed.length) return bulkDialog.close();
   // Fica aberto com o que falhou; a lista é relida sem as que saíram.
   if (bulk?.project === project) {
@@ -3680,7 +3686,7 @@ bulkForm.addEventListener("submit", async (e) => {
     bulkList.replaceChildren(...(proj?.worktrees ?? []).map((wt) => bulkRow(project, wt)));
     syncBulk();
   }
-  bulkError.replaceChildren(el("p", { textContent: `${failed.length === 1 ? "Uma não saiu" : `${failed.length} não saíram`}:` }), ...failed.map((f) => el("p", { textContent: f })));
+  bulkError.replaceChildren(el("p", { textContent: `${failed.length === 1 ? tr("Uma não saiu") : tr("{0} não saíram", failed.length)}:` }), ...failed.map((f) => el("p", { textContent: f })));
   bulkCancel.focus();
 });
 
@@ -3703,7 +3709,7 @@ const pPm = (t: Tab) => projectForm.elements.namedItem(`${t}-pm`) as HTMLSelectE
 /** Package manager do lado: prefixo do start e o exemplo do setup. */
 function setProjectPm(t: Tab, pm: Pm | null) {
   setPm(pPm(t), pm);
-  pfield(`${t}-setup`).placeholder = `ex.: ${pm ?? "npm"} install`;
+  pfield(`${t}-setup`).placeholder = tr("ex.: {0} install", pm ?? "npm");
 }
 
 function openProjectDialog() {
@@ -3738,7 +3744,7 @@ async function loadGithubRepos() {
     ghList.replaceChildren(...repos.map(full => el("option", { value: full })));
     for (const row of projectForm.querySelectorAll<HTMLElement>(".gh-row")) {
       row.hidden = false;
-      row.querySelector(".gh-label")!.textContent = `Repositório no GitHub de ${login}`;
+      row.querySelector(".gh-label")!.textContent = tr("Repositório no GitHub de {0}", login);
     }
     for (const src of projectForm.querySelectorAll<HTMLElement>(".source")) src.hidden = false;
     ghHint.hidden = true;
@@ -3752,10 +3758,10 @@ async function loadGithubRepos() {
     // Os dois conhecidos já dizem o que falta e para quê ("Instale o GitHub CLI (gh) para clonar do GitHub."): uma linha só,
     // sem o "não está disponível" na frente, que a quebrava em duas antes de qualquer campo.
     ghHint.replaceChildren(
-      known ? raw : "Clonar do GitHub: o gh não respondeu como esperado. Confira com ",
+      known ? raw : tr("Clonar do GitHub: o gh não respondeu como esperado. Confira com "),
       ...(known
         ? []
-        : [el("code", { textContent: "gh auth status" }), " no terminal.", el("details", {}, el("summary", { textContent: "Detalhe" }), el("code", { textContent: raw }))]),
+        : [el("code", { textContent: "gh auth status" }), tr(" no terminal."), el("details", {}, el("summary", { textContent: tr("Detalhe") }), el("code", { textContent: raw }))]),
     );
     ghHint.hidden = false;
   }
@@ -3773,17 +3779,17 @@ async function cloneFromGithub(t: Tab, button: HTMLButtonElement) {
   input.removeAttribute("aria-invalid");
   const { repos } = await (ghRepos ?? Promise.resolve({ login: "", repos: [] as string[] }));
   if (!repos.includes(full)) {
-    msg.textContent = "Escolha um repositório da lista, no formato dono/repositório.";
+    msg.textContent = tr("Escolha um repositório da lista, no formato dono/repositório.");
     markInvalid(input, msg);
     return;
   }
   const name = full.split("/")[1];
-  const parent = await pickFolder({ directory: true, defaultPath: load<string | undefined>("cloneParent", undefined), title: `Clonar ${name} em…` });
+  const parent = await pickFolder({ directory: true, defaultPath: load<string | undefined>("cloneParent", undefined), title: tr("Clonar {0} em…", name) });
   if (typeof parent !== "string") return;
   save("cloneParent", parent);
   const req = ++readReq[t];
   // readOnly e aria-disabled, não disabled: o foco fica onde estava (no campo, se foi o Enter; no botão, se foi o clique).
-  setBusy(button, "Clonando…");
+  setBusy(button, tr("Clonando…"));
   input.readOnly = true;
   try {
     const path = await invoke<string>("clone_github_repo", { fullName: full, parent });
@@ -3801,7 +3807,7 @@ async function cloneFromGithub(t: Tab, button: HTMLButtonElement) {
     msg.textContent = String(err);
     markInvalid(input, msg);
   } finally {
-    clearBusy(button, "Clonar…");
+    clearBusy(button, tr("Clonar…"));
     input.readOnly = false;
   }
 }
@@ -3809,8 +3815,8 @@ async function cloneFromGithub(t: Tab, button: HTMLButtonElement) {
 /** Erro do git sobre a pasta do repositório: resumo legível; o texto cru fica embaixo. */
 function repoErrorSummary(message: string) {
   const raw = message.toLowerCase();
-  if (raw.includes("no such file") || raw.includes("cannot change to")) return "Essa pasta não existe.";
-  if (raw.includes("not a git repository") || raw.includes("não é um repositório git")) return "Essa pasta não é um repositório git.";
+  if (raw.includes("no such file") || raw.includes("cannot change to")) return tr("Essa pasta não existe.");
+  if (raw.includes("not a git repository") || raw.includes(tr("não é um repositório git"))) return tr("Essa pasta não é um repositório git.");
   return message;
 }
 
@@ -3849,10 +3855,10 @@ async function readWorktrees(t: Tab) {
       el("p", {
         className: "count",
         textContent: !wts.length
-          ? "Nenhuma worktree ainda. Depois de salvar, crie a primeira pelo + do projeto."
+          ? tr("Nenhuma worktree ainda. Depois de salvar, crie a primeira pelo + do projeto.")
           : wts.length === 1
-            ? "1 worktree vai aparecer no painel:"
-            : `${wts.length} worktrees vão aparecer no painel:`,
+            ? tr("1 worktree vai aparecer no painel:")
+            : tr("{0} worktrees vão aparecer no painel:", wts.length),
       }),
       ...(wts.length ? [el("ul", {}, ...wts.map((w) => el("li", { title: w.path }, el("span", { className: "branch", textContent: w.branch }), w.path.endsWith(`/${w.branch}`) ? null : el("code", { textContent: w.path }))))] : []),
     );
@@ -3870,7 +3876,7 @@ async function readWorktrees(t: Tab) {
 for (const t of TABS) {
   const box = projectForm.querySelector<HTMLFieldSetElement>(`fieldset[data-side="${t}"]`)!;
   box.querySelector<HTMLButtonElement>(".pick")!.addEventListener("click", async () => {
-    const dir = await pickFolder({ directory: true, defaultPath: pfield(`${t}-repo`).value || undefined, title: `Repositório (${TAB_LABEL[t]})` });
+    const dir = await pickFolder({ directory: true, defaultPath: pfield(`${t}-repo`).value || undefined, title: tr("Repositório ({0})", TAB_LABEL[t]) });
     if (typeof dir !== "string") return;
     pfield(`${t}-repo`).value = dir;
     readWorktrees(t);
@@ -3908,7 +3914,7 @@ projectForm.addEventListener("submit", async (e) => {
   for (const t of TABS) if (!pfield(`${t}-repo`).value.trim()) setSource(t, "local");
   if (missingField(projectForm, projectError)) return;
   const submit = e.submitter as HTMLButtonElement;
-  setBusy(submit, "Criando…");
+  setBusy(submit, tr("Criando…"));
   try {
     await invoke("add_project", { project: { name: pfield("name").value, api: side("api"), front: side("front") } });
     projectDialog.close();
@@ -3923,7 +3929,7 @@ projectForm.addEventListener("submit", async (e) => {
       markInvalid(pfield("name"), projectError);
     }
   } finally {
-    clearBusy(submit, "Criar projeto");
+    clearBusy(submit, tr("Criar projeto"));
   }
 });
 
@@ -3952,16 +3958,16 @@ async function reload() {
     reloadBtn.removeAttribute("aria-disabled");
     reloadBtn.removeAttribute("aria-busy");
   }
-  if (configError) return headerNote(false, null, "Não consegui reler: o config tem um problema.");
+  if (configError) return headerNote(false, null, tr("Não consegui reler: o config tem um problema."));
   const after = worktreeNames();
   const added = [...after].filter(([k]) => !before.has(k)).map(([, name]) => name);
   const removed = [...before].filter(([k]) => !after.has(k)).map(([, name]) => name);
-  if (!added.length && !removed.length) return headerNote(false, null, "Worktrees relidas: nada mudou.");
+  if (!added.length && !removed.length) return headerNote(false, null, tr("Worktrees relidas: nada mudou."));
   const parts = [
-    added.length === 1 ? `nova: ${added[0]}` : added.length ? `${added.length} novas` : "",
-    removed.length === 1 ? `saiu: ${removed[0]}` : removed.length ? `${removed.length} saíram` : "",
+    added.length === 1 ? tr("nova: {0}", added[0]) : added.length ? tr("{0} novas", added.length) : "",
+    removed.length === 1 ? tr("saiu: {0}", removed[0]) : removed.length ? tr("{0} saíram", removed.length) : "",
   ].filter(Boolean);
-  headerNote(false, null, `Worktrees relidas: ${parts.join(" · ")}.`);
+  headerNote(false, null, tr("Worktrees relidas: {0}.", parts.join(" · ")));
 }
 
 reloadBtn.addEventListener("click", () => reload());
@@ -3973,7 +3979,7 @@ const toggleBtn = $("#toggle-sidebar");
 /** Nome do botão do painel, com a falha de outro projeto quando houver ("Abrir o painel · falha em LEILAO"). */
 function labelToggle() {
   const alert = toggleBtn.dataset.alert;
-  const label = `${toggleBtn.dataset.label}${alert ? ` · falha em ${alert}` : ""}`;
+  const label = `${toggleBtn.dataset.label}${alert ? tr(" · falha em {0}", alert) : ""}`;
   toggleBtn.classList.toggle("alert", !!alert);
   if (toggleBtn.getAttribute("aria-label") === label) return;
   toggleBtn.title = `${label} (Ctrl+Shift+B)`;
@@ -3995,7 +4001,7 @@ function setSidebar(open: boolean) {
     }, SLIDE_MS);
   }
   document.body.classList.toggle("sidebar-off", !open);
-  toggleBtn.dataset.label = open ? "Recolher o painel" : "Abrir o painel";
+  toggleBtn.dataset.label = open ? tr("Recolher o painel") : tr("Abrir o painel");
   labelToggle();
   toggleBtn.setAttribute("aria-expanded", String(open));
   // Na janela estreita o painel abre por cima e fecha sozinho: isso não muda a preferência salva.
@@ -4127,7 +4133,7 @@ window.addEventListener(
     else if (e.code === "KeyH") helpEl.togglePopover();
     else if (e.code === "KeyN" || e.code === "KeyL" || e.code === "KeyO" || e.code === "KeyF") {
       if (!config.projects.length) {
-        headerNote(false, null, "Sem projeto ainda: crie um primeiro.");
+        headerNote(false, null, tr("Sem projeto ainda: crie um primeiro."));
         emptyEl.querySelector<HTMLButtonElement>(".btn.primary")?.focus();
       } else if (e.code === "KeyN") openAddDialog(current?.project);
       else if (e.code === "KeyO") openInEditor();
@@ -4136,7 +4142,7 @@ window.addEventListener(
     } else if (e.code === "KeyJ") {
       if (current?.wt.api && current.wt.front) setTab(tab === "api" ? "front" : "api", true);
       // Solo: não há o que alternar, e o atalho diz por quê.
-      else if (current) headerNote(false, current.project, `${current.wt.api ? "Só API" : "Só Front"}: nada para alternar`);
+      else if (current) headerNote(false, current.project, tr("{0}: nada para alternar", current.wt.api ? tr("Só API") : tr("Só Front")));
     } else if (e.code === "KeyX") toggleRun(e.altKey, "stop");
     else if (e.code === "KeyS") toggleRun(e.altKey, "start");
     // Ctrl+Shift+R não recarrega o webview (a recarga mataria todos os PTYs): o preventDefault na captura, aqui embaixo.
@@ -4152,7 +4158,7 @@ window.addEventListener(
 
 /** Ctrl+Shift+F: a barra sobre o terminal visível, com o foco nela (aberta, o texto fica selecionado para trocar). */
 function openSearch() {
-  if (!current) return headerNote(false, null, "Escolha uma worktree primeiro.");
+  if (!current) return headerNote(false, null, tr("Escolha uma worktree primeiro."));
   searchEl.hidden = false;
   searchInput.select();
   searchInput.focus();
@@ -4166,7 +4172,7 @@ function find(dir: "next" | "prev", incremental = false) {
   const q = searchInput.value;
   if (!pane || !q) return void (searchSay.textContent = "");
   const found = dir === "next" ? pane.search.findNext(q, { incremental }) : pane.search.findPrevious(q);
-  searchSay.textContent = found ? "" : "Nada encontrado";
+  searchSay.textContent = found ? "" : tr("Nada encontrado");
 }
 
 /** Esc ou o x: fecha e devolve o foco ao terminal. A ocorrência segue selecionada, para copiar. */
@@ -4240,7 +4246,7 @@ window.addEventListener("focus", () => refresh());
 
 const themeBtn = $<HTMLButtonElement>("#theme");
 
-const THEME_NAME = { system: "do sistema", light: "claro", dark: "escuro" } as const;
+const THEME_NAME = { system: tr("do sistema"), light: tr("claro"), dark: tr("escuro") } as const;
 // O clique anda em ciclo: sistema → claro → escuro → sistema.
 const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
@@ -4254,8 +4260,8 @@ function applyTheme() {
   themeBtn.dataset.mode = mode;
   for (const r of themeRadios) r.checked = r.value === mode;
   const next = THEME_NAME[NEXT_THEME[mode]];
-  themeBtn.setAttribute("aria-label", `Tema ${THEME_NAME[mode]}; mudar para o ${next}`);
-  themeBtn.title = `Tema ${THEME_NAME[mode]}${themeChoice ? "" : ` (agora ${THEME_NAME[now]})`} · clique para o ${next}`;
+  themeBtn.setAttribute("aria-label", tr("Tema {0}; mudar para o {1}", THEME_NAME[mode], next));
+  themeBtn.title = tr("Tema {0}{1} · clique para o {2}", THEME_NAME[mode], themeChoice ? "" : tr(" (agora {0})", THEME_NAME[now]), next);
   for (const env of envs.values()) for (const pane of Object.values(env.panes)) pane.term.options.theme = termTheme();
 }
 
@@ -4273,6 +4279,12 @@ themeBtn.addEventListener("click", () => {
 scheme.addEventListener("change", applyTheme);
 applyTheme();
 
+// Idioma: gravado e lido ao abrir (as telas já montadas não se refazem).
+for (const r of document.querySelectorAll<HTMLInputElement>('#settings input[name="lang"]')) {
+  r.checked = r.value === lang;
+  r.addEventListener("change", () => save("lang", r.value));
+}
+
 // ---------- versão nova ----------
 
 const LATEST_API = "https://api.github.com/repos/martinsgabriel1956/hotswap/releases/latest";
@@ -4284,12 +4296,27 @@ let appVersion = "";
 
 const openRelease = () => invoke("open_url", { url: update!.url });
 // No cabeçalho, com o contorno das ações do recado (note-act); nos Ajustes, como os outros botões de lá.
-const releaseLink = (className = "note-act") => el("button", { type: "button", className, textContent: "Ver o release", onclick: openRelease });
+const releaseLink = (className = "note-act") => el("button", { type: "button", className, textContent: tr("Ver o release"), onclick: openRelease });
+const updateBtn = (className = "note-act") => el("button", { type: "button", className, textContent: tr("Atualizar"), onclick: (e: MouseEvent) => installUpdate(e.currentTarget as HTMLButtonElement) });
+
+/** Baixa, confere a assinatura e instala pelo app (o Rust reinicia em seguida). Sem pacote para esta instalação no
+ *  latest.json, ou se falhar, cai no release para instalar à mão. */
+async function installUpdate(button?: HTMLButtonElement) {
+  if (!update || (button && isBusy(button))) return;
+  if (button) setBusy(button, tr("Atualizando…"));
+  try {
+    if ((await invoke<string>("install_update")) === "none") openRelease();
+  } catch (e) {
+    headerNote(true, null, tr("Não consegui atualizar: {0}", e instanceof Error ? e.message : e), releaseLink());
+  } finally {
+    if (button) clearBusy(button, tr("Atualizar"));
+  }
+}
 
 /** Ajustes → Versão: a instalada e, se houver, a nova com o link. `say`: o resultado de um "Verificar agora". */
 function renderVersion(say?: string) {
   versionNow.textContent = appVersion ? `Hotswap ${appVersion}` : "";
-  if (update) versionSay.replaceChildren(`Hotswap ${update.version} disponível `, releaseLink("btn small"));
+  if (update) versionSay.replaceChildren(tr("Hotswap {0} disponível ", update.version), updateBtn("btn small"));
   else versionSay.textContent = say ?? "";
 }
 
@@ -4297,22 +4324,22 @@ function renderVersion(say?: string) {
  *  O aviso no cabeçalho aparece uma vez por versão; os Ajustes e a bandeja seguem mostrando até atualizar. */
 async function checkUpdate(manual = false) {
   if (!appVersion) return;
-  if (manual) setBusy(checkBtn, "Verificando…");
+  if (manual) setBusy(checkBtn, tr("Verificando…"));
   try {
     const res = await fetch(LATEST_API, { headers: { Accept: "application/vnd.github+json" } });
-    if (!res.ok) throw new Error(`o GitHub respondeu ${res.status}`);
+    if (!res.ok) throw new Error(tr("o GitHub respondeu {0}", res.status));
     const rel = (await res.json()) as { tag_name: string; html_url: string };
     const version = rel.tag_name.replace(/^v/, "");
     update = isNewer(version, appVersion) ? { version, url: rel.html_url } : null;
     if (update && load("updateNoticed", "") !== version) {
       save("updateNoticed", version);
-      headerNote(true, null, el("span", { className: "news", textContent: `Hotswap ${version} disponível` }), releaseLink());
+      headerNote(true, null, el("span", { className: "news", textContent: tr("Hotswap {0} disponível", version) }), updateBtn());
     }
-    renderVersion(manual ? "Esta é a versão mais recente." : undefined);
+    renderVersion(manual ? tr("Esta é a versão mais recente.") : undefined);
   } catch (e) {
-    if (manual) renderVersion(`Não consegui verificar: ${e instanceof Error ? e.message : e}`);
+    if (manual) renderVersion(tr("Não consegui verificar: {0}", e instanceof Error ? e.message : e));
   } finally {
-    if (manual) clearBusy(checkBtn, "Verificar agora");
+    if (manual) clearBusy(checkBtn, tr("Verificar agora"));
     syncTray();
   }
 }

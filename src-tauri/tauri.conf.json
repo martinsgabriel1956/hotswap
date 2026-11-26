@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "hotswap",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "identifier": "dev.gabriel.hotswap",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -45,6 +45,18 @@
     },
     "category": "DeveloperTool",
     "shortDescription": "Troca de terminais entre worktrees",
-    "longDescription": "Alterna entre worktrees de projetos com API e front em repositórios separados, com um terminal para cada lado."
+    "longDescription": "Alterna entre worktrees de projetos com API e front em repositórios separados, com um terminal para cada lado.",
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY4Q0RCREIzN0NERDUzN0YKUldSL1U5MThzNzNOK0NNNXFrYjhpdFl4MHpNM0FFY3BOT0J0Q280RjdIdTN3ZFpVNTJpM2ZRbUQK",
+      "endpoints": [
+        "https://github.com/martinsgabriel1956/hotswap/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
