@@ -26,7 +26,7 @@ test("todo tr(\"…\") do código tem tradução, com os mesmos {n}", () => {
 });
 
 test("o texto do index.html tem tradução", () => {
-  const keep = new Set(["Hotswap", "API", "Front", "Ctrl", "Shift", "Alt", "Enter", "Esc", "Branch", "Git", "Zoom:", "SIGKILL", "parallelEnv", ".bare", "Setup", "npm run", "npm", "yarn", "pnpm", "Português", "English", "Terminal", "Worktrees"]);
+  const keep = new Set(["Hotswap", "API", "Front", "Ctrl", "Shift", "Alt", "Enter", "Esc", "Branch", "Git", "Zoom:", "SIGKILL", "parallelEnv", ".bare", "Setup", "npm run", "npm", "yarn", "pnpm", "Português", "English", "Terminal", "Worktrees", "Solarized", "Gruvbox", "Catppuccin", "Tokyo Night"]);
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8").replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/g, "");
   const texts = [...html.matchAll(/>([^<>]+)</g)].map((m) => m[1]);
   const attrs = [...html.matchAll(/\s(?:title|placeholder|aria-label)="([^"]+)"/g)].map((m) => m[1]);

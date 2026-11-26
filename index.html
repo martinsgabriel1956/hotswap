@@ -10,6 +10,10 @@
         var theme = JSON.parse(localStorage.getItem("theme"));
       } catch {}
       document.documentElement.dataset.theme = theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      // A paleta (Ajustes → Paleta) também, pelo mesmo motivo.
+      try {
+        document.documentElement.dataset.palette = JSON.parse(localStorage.getItem("palette")) || "hotswap";
+      } catch {}
       // A opacidade também antes da primeira pintura (main.ts aplica de novo e cuida do terminal).
       try {
         var glass = JSON.parse(localStorage.getItem("opacity"));
@@ -48,7 +52,7 @@
         <button id="reload" type="button" class="icon-btn" aria-label="Reler worktrees" title="Reler worktrees (Ctrl+Shift+L)">
           <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" /></svg>
         </button>
-        <button id="settings-btn" type="button" class="icon-btn" popovertarget="settings" aria-label="Ajustes" title="Ajustes: tema, idioma, leitor de tela e opacidade">
+        <button id="settings-btn" type="button" class="icon-btn" popovertarget="settings" aria-label="Ajustes" title="Ajustes: tema, paleta, idioma, leitor de tela e opacidade">
           <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5h6M11.5 5h2M2.5 11h2M7.5 11h6" /><circle cx="10" cy="5" r="1.5" /><circle cx="6" cy="11" r="1.5" /></svg>
         </button>
         <button id="theme" type="button" class="icon-btn">
@@ -157,12 +161,22 @@
       </div>
       </section>
       <section>
+      <h2 id="palette-title">Paleta</h2>
+      <div class="choices palettes" role="radiogroup" aria-labelledby="palette-title">
+        <label class="check"><input type="radio" name="palette" value="hotswap" /> Hotswap <span class="palette-sample" data-palette="hotswap" aria-hidden="true"><span class="flap" data-state="run"><span>RODANDO</span></span><span class="flap" data-state="stop"><span>PARANDO</span></span></span></label>
+        <label class="check"><input type="radio" name="palette" value="solarized" /> Solarized <span class="palette-sample" data-palette="solarized" aria-hidden="true"><span class="flap" data-state="run"><span>RODANDO</span></span><span class="flap" data-state="stop"><span>PARANDO</span></span></span></label>
+        <label class="check"><input type="radio" name="palette" value="gruvbox" /> Gruvbox <span class="palette-sample" data-palette="gruvbox" aria-hidden="true"><span class="flap" data-state="run"><span>RODANDO</span></span><span class="flap" data-state="stop"><span>PARANDO</span></span></span></label>
+        <label class="check"><input type="radio" name="palette" value="catppuccin" /> Catppuccin <span class="palette-sample" data-palette="catppuccin" aria-hidden="true"><span class="flap" data-state="run"><span>RODANDO</span></span><span class="flap" data-state="stop"><span>PARANDO</span></span></span></label>
+        <label class="check"><input type="radio" name="palette" value="tokyonight" /> Tokyo Night <span class="palette-sample" data-palette="tokyonight" aria-hidden="true"><span class="flap" data-state="run"><span>RODANDO</span></span><span class="flap" data-state="stop"><span>PARANDO</span></span></span></label>
+      </div>
+      </section>
+      <section>
       <h2 id="lang-title">Idioma</h2>
       <div class="choices" role="radiogroup" aria-labelledby="lang-title">
         <label class="check"><input type="radio" name="lang" value="pt" lang="pt-BR" /> Português</label>
         <label class="check"><input type="radio" name="lang" value="en" lang="en" /> English</label>
       </div>
-      <p class="fine">Vale na próxima vez que o Hotswap abrir.</p>
+      <p class="fine" id="lang-note" role="status">Vale na próxima vez que o Hotswap abrir.</p>
       </section>
       <section>
       <h2>Leitor de tela</h2>

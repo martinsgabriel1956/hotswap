@@ -3,7 +3,10 @@
    verde de pé, âmbar em movimento (subindo, aguardando, parando), vermelho só quando algo falhou.
    Quem está morrendo (PARANDO, SIGKILL) é o negativo de quem espera: a mesma palheta âmbar, invertida. */
 
-:root {
+/* Os tokens valem no :root e em todo [data-palette]: a amostra de cada paleta nos Ajustes é um pedaço de painel com a
+   paleta e o tema próprios (data-palette e data-theme nela), lida dos mesmos blocos. */
+:root,
+[data-palette] {
   color-scheme: dark;
   --board: #131417;
   --rail: #18191d;
@@ -63,7 +66,8 @@
   color: var(--ink);
 }
 
-:root[data-theme="light"] {
+:root[data-theme="light"],
+[data-palette][data-theme="light"] {
   color-scheme: light;
   --board: #f4f5f3;
   --rail: #ebece9;
@@ -76,7 +80,8 @@
      ou mais; INATIVA fica nas metades neutras, mais escuras que o esmalte e que a linha atual (degrau de 1,16:1).
      O terminal (ANSI) e o resto da interface ficam com run/start/fail. */
   --flap-top: #d2d3ce;
-  --flap-bot: #c3c5bf;
+  --flap-low: #c3c5bf;
+  --flap-bot: var(--flap-low);
   --flap-ink: #45474c;
   --flap-run: #15161a;
   --flap-start: #15161a;
@@ -119,6 +124,234 @@
   --side-shadow: 6px 0 16px rgb(21 22 26 / 16%);
   /* de dia, a meio caminho ficava a 1,1:1 da linha atual (flap): mais perto do trilho */
   --hover: color-mix(in srgb, var(--flap) 35%, var(--rail));
+}
+
+/* Paletas (Ajustes → Paleta): outros materiais para os mesmos papéis, cada uma com noite e dia. Fundo e tinta vêm do
+   esquema original; trilho, palheta e fios são misturas dos dois; as tintas e as cores de estado foram empurradas só o
+   bastante para os contrastes de cima (gerado por script; o palettes.test.ts confere). A marca
+   (--mark-*) e as sombras ficam as do Hotswap. */
+[data-palette="solarized"]:not([data-theme="light"]) {
+  --rail: #06303a;
+  --flap: #113841;
+  --flap-hi: #1a4047;
+  --rule: #1f444b;
+  --ink: #eee8d5;
+  --ink-2: #9da89f;
+  --ink-3: #768885;
+  --run: #abb94f;
+  --start: #ccae4f;
+  --fail: #eb8c8b;
+  --wait: #ccae4f;
+  --focus: #eee8d5;
+  --primary: #eee8d5;
+  --primary-ink: #002b36;
+  --selection: rgb(238 232 213 / 22%);
+  --body-move-bot: #cdaf51;
+  --body-move-top: #d4bb6b;
+  --board: #002b36;
+}
+
+[data-palette="solarized"][data-theme="light"] {
+  --rail: #f3eedd;
+  --flap: #ddddce;
+  --flap-hi: #eeead9;
+  --rule: #d8d9cb;
+  --flap-top: #d8d9cb;
+  --flap-low: #c9cec1;
+  --ink: #073642;
+  --ink-2: #395c62;
+  --ink-3: #5b7779;
+  --run: #505c00;
+  --start: #6d5200;
+  --fail: #a52623;
+  --wait: #6d5200;
+  --focus: #073642;
+  --primary: #073642;
+  --primary-ink: #fdf6e3;
+  --selection: rgb(7 54 66 / 16%);
+  --flap-run: #073642;
+  --flap-start: #073642;
+  --flap-fail: #073642;
+  --flap-ink: #385c62;
+  --body-run-bot: #bac66f;
+  --body-run-top: #c4cf85;
+  --body-move-bot: #d5bd6f;
+  --body-move-top: #dbc785;
+  --body-fail-bot: #f1adad;
+  --body-fail-top: #f3b9b9;
+  --body-stop-top: #1a4047;
+  --body-stop-bot: #113841;
+  --ink-stop: #dfcc90;
+  --ends-bg: #eee1b9;
+  --board: #fdf6e3;
+}
+
+[data-palette="gruvbox"]:not([data-theme="light"]) {
+  --rail: #2d2c2b;
+  --flap: #363532;
+  --flap-hi: #3d3c37;
+  --rule: #413f3a;
+  --ink: #ebdbb2;
+  --ink-2: #b0a588;
+  --ink-3: #8d8570;
+  --run: #bdc035;
+  --start: #fabd2f;
+  --fail: #fd9285;
+  --wait: #fabd2f;
+  --focus: #ebdbb2;
+  --primary: #ebdbb2;
+  --primary-ink: #282828;
+  --selection: rgb(235 219 178 / 22%);
+  --body-move-bot: #fabd2f;
+  --body-move-top: #fbc74e;
+  --board: #282828;
+}
+
+[data-palette="gruvbox"][data-theme="light"] {
+  --rail: #f3eac1;
+  --flap: #e2d9b4;
+  --flap-hi: #f0e6be;
+  --rule: #ded5b1;
+  --flap-top: #ded5b1;
+  --flap-low: #d3caa9;
+  --ink: #3c3836;
+  --ink-2: #5a554d;
+  --ink-3: #756f61;
+  --run: #5b570a;
+  --start: #764d0d;
+  --fail: #9d0006;
+  --wait: #764d0d;
+  --focus: #3c3836;
+  --primary: #3c3836;
+  --primary-ink: #fbf1c7;
+  --selection: rgb(60 56 54 / 16%);
+  --flap-run: #3c3836;
+  --flap-start: #3c3836;
+  --flap-fail: #3c3836;
+  --flap-ink: #5a554d;
+  --body-run-bot: #cdcf65;
+  --body-run-top: #d4d67c;
+  --body-move-bot: #fac13b;
+  --body-move-top: #fbca58;
+  --body-fail-bot: #feb8b0;
+  --body-fail-top: #fec3bc;
+  --body-stop-top: #3d3c37;
+  --body-stop-bot: #363532;
+  --ink-stop: #fbc74e;
+  --ends-bg: #fbdf95;
+  --board: #fbf1c7;
+}
+
+[data-palette="catppuccin"]:not([data-theme="light"]) {
+  --rail: #222333;
+  --flap: #2a2b3c;
+  --flap-hi: #313244;
+  --rule: #353648;
+  --ink: #cdd6f4;
+  --ink-2: #949ab4;
+  --ink-3: #777b92;
+  --run: #a6e3a1;
+  --start: #f9e2af;
+  --fail: #f38eab;
+  --wait: #f9e2af;
+  --focus: #cdd6f4;
+  --primary: #cdd6f4;
+  --primary-ink: #1e1e2e;
+  --selection: rgb(205 214 244 / 22%);
+  --body-move-bot: #f9e2af;
+  --body-move-top: #fae6bb;
+  --board: #1e1e2e;
+}
+
+[data-palette="catppuccin"][data-theme="light"] {
+  --rail: #e8ebef;
+  --flap: #dadce3;
+  --flap-hi: #e5e7ed;
+  --rule: #d7d9e0;
+  --flap-top: #d7d9e0;
+  --flap-low: #cdcfd8;
+  --ink: #393b4f;
+  --ink-2: #565869;
+  --ink-3: #717382;
+  --run: #28651b;
+  --start: #7b4e10;
+  --fail: #b20d30;
+  --wait: #7b4e10;
+  --focus: #393b4f;
+  --primary: #393b4f;
+  --primary-ink: #eff1f5;
+  --selection: rgb(57 59 79 / 16%);
+  --flap-run: #393b4f;
+  --flap-start: #393b4f;
+  --flap-fail: #393b4f;
+  --flap-ink: #56586a;
+  --body-run-bot: #a6e3a1;
+  --body-run-top: #b3e7af;
+  --body-move-bot: #f9e2af;
+  --body-move-top: #fae6bb;
+  --body-fail-bot: #f8c0d0;
+  --body-fail-top: #f9c9d7;
+  --body-stop-top: #313244;
+  --body-stop-bot: #2a2b3c;
+  --ink-stop: #f9e2af;
+  --ends-bg: #f4ecdb;
+  --board: #eff1f5;
+}
+
+[data-palette="tokyonight"]:not([data-theme="light"]) {
+  --rail: #1e1f2b;
+  --flap: #262734;
+  --flap-hi: #2c2e3d;
+  --rule: #303241;
+  --ink: #c0caf5;
+  --ink-2: #8e94b6;
+  --ink-3: #717693;
+  --run: #9ece6a;
+  --start: #e0af68;
+  --fail: #f88096;
+  --wait: #e0af68;
+  --focus: #c0caf5;
+  --primary: #c0caf5;
+  --primary-ink: #1a1b26;
+  --selection: rgb(192 202 245 / 22%);
+  --body-move-bot: #e0af68;
+  --body-move-top: #e5bb7f;
+  --board: #1a1b26;
+}
+
+[data-palette="tokyonight"][data-theme="light"] {
+  --rail: #dadbe1;
+  --flap: #cbccd4;
+  --flap-hi: #d7d8de;
+  --rule: #c7c9d2;
+  --flap-top: #c7c9d2;
+  --flap-low: #bdbfc9;
+  --ink: #2b3048;
+  --ink-2: #494d62;
+  --ink-3: #64687a;
+  --run: #3f5429;
+  --start: #5f492a;
+  --fail: #8b2f2f;
+  --wait: #5f492a;
+  --focus: #2b3048;
+  --primary: #2b3048;
+  --primary-ink: #e1e2e7;
+  --selection: rgb(43 48 72 / 16%);
+  --flap-run: #2b3048;
+  --flap-start: #2b3048;
+  --flap-fail: #2b3048;
+  --flap-ink: #494d62;
+  --body-run-bot: #9ece6a;
+  --body-run-top: #add580;
+  --body-move-bot: #e3b879;
+  --body-move-top: #e7c38d;
+  --body-fail-bot: #faa9b8;
+  --body-fail-top: #fbb6c3;
+  --body-stop-top: #2c2e3d;
+  --body-stop-bot: #262734;
+  --ink-stop: #e2b471;
+  --ends-bg: #e4d4be;
+  --board: #e1e2e7;
 }
 
 * {
@@ -282,7 +515,7 @@ kbd {
    mais escura que a linha. Luz de cima e o corte no meio. Os corpos de estado não mudam na linha atual. */
 :root[data-theme="light"] :is(.line[aria-current="true"], #palette li[aria-selected="true"]) .flap {
   --flap-top: var(--flap-hi);
-  --flap-bot: #c3c5bf;
+  --flap-bot: var(--flap-low);
 }
 
 .flap > span {
@@ -2285,6 +2518,36 @@ dialog.form .pick[aria-disabled="true"] {
   display: flex;
   flex-wrap: wrap;
   gap: 0 16px;
+}
+
+/* Paleta: uma por linha, com a amostra à direita: um pedaço de painel (fundo, fio, tinta) com RODANDO e PARANDO na
+   paleta e no tema em vigor (main.ts põe o data-theme). Escolher é olhar a amostra, não ler o nome. */
+#settings .palettes {
+  flex-direction: column;
+  gap: 4px;
+}
+
+#settings .palettes label.check {
+  gap: 8px;
+}
+
+#settings .palettes input {
+  margin-right: 0;
+}
+
+.palette-sample {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  padding: 5px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--board);
+}
+
+#settings .palettes input:checked ~ .palette-sample {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 #settings .version-line {

@@ -23,6 +23,7 @@ import { pullErrorLine, pullErrorSummary } from "./pull";
 import { isNewer } from "./update";
 import { envPrefix, fill, movesOwnPort, portMismatch, propose, templateError, type Ports } from "./parallel";
 import { lang, locale, translateDom, tr } from "./i18n.ts";
+import { PALETTES, TERM_COLORS, type Palette } from "./palettes.ts";
 
 // Antes de tudo: o HTML estático e o Rust no idioma escolhido (os textos de cima a baixo já saem por tr).
 document.documentElement.lang = lang === "en" ? "en" : "pt-BR";
@@ -88,55 +89,21 @@ const CONFIG_EXAMPLE = `{
   ]
 }`;
 
-// Cores ANSI dos terminais por tema. São conteúdo (saída dos programas), não paleta da interface;
-// vermelho, verde e amarelo são os estados e vêm dos tokens (termTheme).
-const TERM_THEME: Record<"dark" | "light", ITheme> = {
-  dark: {
-    foreground: "#e6e5df",
-    black: "#1b1c20",
-    blue: "#6ea8fe",
-    magenta: "#c792ea",
-    cyan: "#5ccfe6",
-    white: "#d6d5cf",
-    // 4,76:1 sobre o fundo: é a cor das sugestões do fish, lida o dia todo (#6c6d6a dava 3,54:1)
-    brightBlack: "#81827e",
-    brightRed: "#ff8a8a",
-    brightGreen: "#6fd9a5",
-    brightYellow: "#ffcb66",
-    brightBlue: "#93bdff",
-    brightMagenta: "#ddb3f5",
-    brightCyan: "#8be2f2",
-    brightWhite: "#f4f3ee",
-  },
-  light: {
-    foreground: "#1d1e22",
-    black: "#1d1e22",
-    blue: "#1f5fbf",
-    magenta: "#8e3fa8",
-    cyan: "#0b6e7a",
-    white: "#6c6e72",
-    brightBlack: "#55575c",
-    brightRed: "#ce352a",
-    brightGreen: "#127f4d",
-    brightYellow: "#9a5f00",
-    brightBlue: "#2b6cd1",
-    brightMagenta: "#9d4cb7",
-    brightCyan: "#0e7a87",
-    brightWhite: "#3a3c40",
-  },
-};
 const scheme = matchMedia("(prefers-color-scheme: light)");
 type Theme = "dark" | "light";
 const systemTheme = (): Theme => (scheme.matches ? "light" : "dark");
 // Escolha do botão de tema; null segue o sistema (o COSMIC alterna dia e noite sozinho, e o app acompanha).
 let themeChoice: Theme | null = load<Theme | null>("theme", null);
 const theme = (): Theme => themeChoice ?? systemTheme();
+// Paleta dos Ajustes: os materiais (CSS, `data-palette`) e as cores ANSI; o tema (noite/dia) segue à parte.
+let colors: Palette = load<Palette>("palette", "hotswap");
+if (!PALETTES.includes(colors)) colors = "hotswap";
 /** Fundo, cursor, seleção e as cores de estado vêm dos tokens do CSS (o terminal fica sobre o mesmo fundo do painel); as outras cores ANSI são conteúdo. */
 function termTheme(): ITheme {
   const css = getComputedStyle(document.documentElement);
   const token = (name: string) => css.getPropertyValue(name).trim();
   return {
-    ...TERM_THEME[theme()],
+    ...TERM_COLORS[colors][theme()],
     // translúcida, quem pinta o fundo é o main (.glass no CSS): o terminal por cima fica sem cor própria
     background: document.documentElement.classList.contains("glass") ? "#00000000" : token("--term-bg"),
     cursor: token("--ink"),
@@ -584,7 +551,8 @@ let current: { project: string; wt: Worktree } | null = null;
 // Último menu mandado à bandeja (syncTray): aqui em cima porque o render pode rodar antes da seção da bandeja.
 let trayJson = "";
 // Release mais novo que o instalado (checkUpdate), ou null; aqui em cima pelo mesmo motivo.
-let update: { version: string; url: string } | null = null;
+// `installed`: o update pelo app já instalou essa versão; ela vale ao reiniciar.
+let update: { version: string; url: string; installed?: boolean } | null = null;
 let tab: Tab = "api";
 // Estado do git por pasta de lado (mudanças, commits à frente/atrás), relido junto com a lista, não no ciclo do pty_status.
 let gitStates = new Map<string, GitState>();
@@ -3518,7 +3486,11 @@ function syncTray() {
     const live = isLive(project, wt);
     entries.push(trayItem(live ? "stop" : "start", `${live ? tr("Parar") : tr("Subir")} ${project} / ${wt.label}`, !stopping.has(project)));
   }
-  if (update) entries.unshift(trayItem("update", tr("Hotswap {0} disponível…", update.version)), { kind: "separator" });
+  if (update)
+    entries.unshift(
+      update.installed ? trayItem("restart", tr("Reiniciar para usar o Hotswap {0}", update.version)) : trayItem("update", tr("Hotswap {0} disponível…", update.version)),
+      { kind: "separator" },
+    );
   entries.push(trayItem("palette", tr("Trocar de worktree… (Ctrl+Shift+K)")), trayItem("new", tr("Nova worktree…"), config.projects.length > 0));
   if (config.projects.length) entries.push({ kind: "separator" });
   for (const p of config.projects) {
@@ -3541,6 +3513,7 @@ listen<string>("tray", ({ payload }) => {
   if (document.querySelector("dialog[open]")) return;
   if (payload === "palette") return palette.hidden && openPalette();
   if (payload === "update") return installUpdate();
+  if (payload === "restart") return restartApp();
   if (payload === "new") return openAddDialog(current?.project);
   if (payload === "stop" || payload === "start") return toggleRun(true, payload);
   if (payload.startsWith("wt:")) {
@@ -4254,15 +4227,27 @@ const themeRadios = [...document.querySelectorAll<HTMLInputElement>('#settings i
 
 function applyTheme() {
   save("theme", themeChoice);
+  save("palette", colors);
+  document.documentElement.dataset.palette = colors;
   const now = theme();
   const mode = themeChoice ?? "system";
   document.documentElement.dataset.theme = now;
+  // As amostras de paleta (Ajustes) no tema em vigor.
+  for (const s of document.querySelectorAll<HTMLElement>(".palette-sample")) s.dataset.theme = now;
   themeBtn.dataset.mode = mode;
   for (const r of themeRadios) r.checked = r.value === mode;
   const next = THEME_NAME[NEXT_THEME[mode]];
   themeBtn.setAttribute("aria-label", tr("Tema {0}; mudar para o {1}", THEME_NAME[mode], next));
   themeBtn.title = tr("Tema {0}{1} · clique para o {2}", THEME_NAME[mode], themeChoice ? "" : tr(" (agora {0})", THEME_NAME[now]), next);
   for (const env of envs.values()) for (const pane of Object.values(env.panes)) pane.term.options.theme = termTheme();
+}
+
+for (const r of document.querySelectorAll<HTMLInputElement>('#settings input[name="palette"]')) {
+  r.checked = r.value === colors;
+  r.addEventListener("change", () => {
+    colors = r.value as Palette;
+    applyTheme();
+  });
 }
 
 for (const r of themeRadios)
@@ -4279,10 +4264,15 @@ themeBtn.addEventListener("click", () => {
 scheme.addEventListener("change", applyTheme);
 applyTheme();
 
-// Idioma: gravado e lido ao abrir (as telas já montadas não se refazem).
+// Idioma: gravado e lido ao abrir (as telas já montadas não se refazem); escolher outro oferece reiniciar já.
+const langNote = $("#lang-note");
 for (const r of document.querySelectorAll<HTMLInputElement>('#settings input[name="lang"]')) {
   r.checked = r.value === lang;
-  r.addEventListener("change", () => save("lang", r.value));
+  r.addEventListener("change", () => {
+    save("lang", r.value);
+    if (r.value === lang) langNote.textContent = tr("Vale na próxima vez que o Hotswap abrir.");
+    else langNote.replaceChildren(tr("Vale ao reiniciar o Hotswap. "), restartBtn("btn small"));
+  });
 }
 
 // ---------- versão nova ----------
@@ -4298,6 +4288,9 @@ const openRelease = () => invoke("open_url", { url: update!.url });
 // No cabeçalho, com o contorno das ações do recado (note-act); nos Ajustes, como os outros botões de lá.
 const releaseLink = (className = "note-act") => el("button", { type: "button", className, textContent: tr("Ver o release"), onclick: openRelease });
 const updateBtn = (className = "note-act") => el("button", { type: "button", className, textContent: tr("Atualizar"), onclick: (e: MouseEvent) => installUpdate(e.currentTarget as HTMLButtonElement) });
+// Reinicia o app (com processo rodando, o Rust pergunta antes): para a versão instalada ou o idioma novo.
+const restartApp = () => invoke("restart_app");
+const restartBtn = (className = "note-act") => el("button", { type: "button", className, textContent: tr("Reiniciar"), onclick: restartApp });
 
 /** Baixa, confere a assinatura e instala pelo app (o Rust reinicia em seguida). Sem pacote para esta instalação no
  *  latest.json, ou se falhar, cai no release para instalar à mão. */
@@ -4305,7 +4298,14 @@ async function installUpdate(button?: HTMLButtonElement) {
   if (!update || (button && isBusy(button))) return;
   if (button) setBusy(button, tr("Atualizando…"));
   try {
-    if ((await invoke<string>("install_update")) === "none") openRelease();
+    const result = await invoke<string>("install_update");
+    if (result === "none") openRelease();
+    if (result === "installed") {
+      update.installed = true;
+      headerNote(true, null, el("span", { className: "news", textContent: tr("Hotswap {0} instalado", update.version) }), restartBtn());
+      renderVersion();
+      syncTray();
+    }
   } catch (e) {
     headerNote(true, null, tr("Não consegui atualizar: {0}", e instanceof Error ? e.message : e), releaseLink());
   } finally {
@@ -4316,7 +4316,8 @@ async function installUpdate(button?: HTMLButtonElement) {
 /** Ajustes → Versão: a instalada e, se houver, a nova com o link. `say`: o resultado de um "Verificar agora". */
 function renderVersion(say?: string) {
   versionNow.textContent = appVersion ? `Hotswap ${appVersion}` : "";
-  if (update) versionSay.replaceChildren(tr("Hotswap {0} disponível ", update.version), updateBtn("btn small"));
+  if (update?.installed) versionSay.replaceChildren(tr("Hotswap {0} instalado; vale ao reiniciar ", update.version), restartBtn("btn small"));
+  else if (update) versionSay.replaceChildren(tr("Hotswap {0} disponível ", update.version), updateBtn("btn small"));
   else versionSay.textContent = say ?? "";
 }
 
@@ -4330,7 +4331,8 @@ async function checkUpdate(manual = false) {
     if (!res.ok) throw new Error(tr("o GitHub respondeu {0}", res.status));
     const rel = (await res.json()) as { tag_name: string; html_url: string };
     const version = rel.tag_name.replace(/^v/, "");
-    update = isNewer(version, appVersion) ? { version, url: rel.html_url } : null;
+    // O app segue na versão de antes até reiniciar: a nova que já foi instalada continua marcada.
+    update = isNewer(version, appVersion) ? { version, url: rel.html_url, installed: update?.installed && update.version === version } : null;
     if (update && load("updateNoticed", "") !== version) {
       save("updateNoticed", version);
       headerNote(true, null, el("span", { className: "news", textContent: tr("Hotswap {0} disponível", version) }), updateBtn());

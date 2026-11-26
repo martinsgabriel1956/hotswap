@@ -56,24 +56,51 @@ fn show_window(app: &AppHandle) {
     }
 }
 
-/// Sair de verdade encerra os dev servers, então pergunta antes se houver algo rodando.
-fn quit(app: &AppHandle) {
+/// Sair e reiniciar encerram os dev servers: com algo rodando, pergunta antes (diálogo nativo) e só então faz `then`.
+fn confirm_end(app: &AppHandle, message: String, title: String, button: String, then: impl FnOnce(&AppHandle) + Send + 'static) {
     if !app.state::<pty::Ptys>().any_busy() {
-        app.exit(0);
-        return;
+        return then(app);
     }
     show_window(app);
     let handle = app.clone();
     app.dialog()
-        .message(tr!("Há processos rodando nos terminais. Sair encerra todos eles.", "Processes are running in the terminals. Quitting ends all of them."))
-        .title(tr!("Sair do Hotswap", "Quit Hotswap"))
+        .message(message)
+        .title(title)
         .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom(tr!("Sair", "Quit"), tr!("Cancelar", "Cancel")))
+        .buttons(MessageDialogButtons::OkCancelCustom(button, tr!("Cancelar", "Cancel")))
         .show(move |ok| {
             if ok {
-                handle.exit(0);
+                then(&handle);
             }
         });
+}
+
+fn quit(app: &AppHandle) {
+    confirm_end(
+        app,
+        tr!("Há processos rodando nos terminais. Sair encerra todos eles.", "Processes are running in the terminals. Quitting ends all of them."),
+        tr!("Sair do Hotswap", "Quit Hotswap"),
+        tr!("Sair", "Quit"),
+        |app| app.exit(0),
+    );
+}
+
+/// Reinicia o app (versão instalada pelo update, idioma novo); os PTYs morrem antes, como ao sair.
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    confirm_end(
+        &app,
+        tr!(
+            "Há processos rodando nos terminais. Reiniciar o Hotswap encerra todos eles.",
+            "Processes are running in the terminals. Restarting Hotswap ends all of them."
+        ),
+        tr!("Reiniciar o Hotswap", "Restart Hotswap"),
+        tr!("Reiniciar", "Restart"),
+        |app| {
+            app.state::<pty::Ptys>().kill_all();
+            app.restart()
+        },
+    );
 }
 
 /// Item do menu da bandeja montado pelo front, que sabe os projetos e quem está de pé.
@@ -127,31 +154,16 @@ fn set_lang(lang: String) {
 }
 
 /// Atualiza pelo release do GitHub (latest.json): "none" se não há versão nova para este pacote (o front abre o release),
-/// "canceled" se havia processos rodando e a pessoa desistiu. Instalado, reinicia o app e não volta.
+/// "installed" quando instalou; a nova vale ao reiniciar (restart_app), quando a pessoa escolher. No Windows o instalador
+/// fecha o app e não volta.
 #[tauri::command]
 async fn install_update(app: AppHandle) -> Result<&'static str, String> {
     use tauri_plugin_updater::UpdaterExt;
     let Some(update) = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())? else {
         return Ok("none");
     };
-    if app.state::<pty::Ptys>().any_busy() {
-        let go = app
-            .dialog()
-            .message(tr!(
-                "Há processos rodando nos terminais. Atualizar reinicia o Hotswap e encerra todos eles.",
-                "Processes are running in the terminals. Updating restarts Hotswap and ends all of them."
-            ))
-            .title(tr!("Atualizar o Hotswap para {}", "Update Hotswap to {}", update.version))
-            .kind(MessageDialogKind::Warning)
-            .buttons(MessageDialogButtons::OkCancelCustom(tr!("Atualizar", "Update"), tr!("Cancelar", "Cancel")))
-            .blocking_show();
-        if !go {
-            return Ok("canceled");
-        }
-    }
     update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
-    app.state::<pty::Ptys>().kill_all();
-    app.restart()
+    Ok("installed")
 }
 
 /// O front remonta o menu quando muda o que ele mostra (projetos, worktree atual, quem está de pé).
@@ -214,6 +226,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             set_lang,
             install_update,
+            restart_app,
             set_tray_menu,
             pty::pty_spawn,
             pty::pty_write,
