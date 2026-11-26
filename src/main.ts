@@ -3879,7 +3879,20 @@ function labelToggle() {
   toggleBtn.setAttribute("aria-label", label);
 }
 
+/** Duração do deslize do painel (casa com o CSS de body.ready #sidebar). */
+const SLIDE_MS = 220;
+let slideEnd = 0;
+
 function setSidebar(open: boolean) {
+  // Deslizando, o terminal não se reajusta a cada quadro (cada um mandaria pty_resize): ajusta uma vez no fim.
+  if (document.body.classList.contains("ready") && open === document.body.classList.contains("sidebar-off")) {
+    document.body.classList.add("sliding");
+    clearTimeout(slideEnd);
+    slideEnd = setTimeout(() => {
+      document.body.classList.remove("sliding");
+      fitCurrent();
+    }, SLIDE_MS);
+  }
   document.body.classList.toggle("sidebar-off", !open);
   toggleBtn.dataset.label = open ? "Recolher o painel" : "Abrir o painel";
   labelToggle();
@@ -3902,6 +3915,7 @@ function toggleAndFocus() {
 }
 toggleBtn.addEventListener("click", toggleAndFocus);
 setSidebar(load<string>("sidebar", "open") !== "off");
+requestAnimationFrame(() => document.body.classList.add("ready"));
 $("main").addEventListener("pointerdown", closeOverlay);
 // Por cima, o painel é uma gaveta: o Tab que sai dele (para o cabeçalho, debaixo dele) e o Esc em qualquer controle fecham.
 // relatedTarget nulo (clique num vazio do painel, janela perdendo o foco) não fecha.
@@ -4236,13 +4250,16 @@ applyOpacity(Math.min(100, Math.max(40, Number(load("opacity", 100)) || 100)));
 // Só o terminal visível, uma vez por quadro: os ocultos se ajustam ao aparecer (render), e arrastando a barra
 // o ajuste espera soltar (o lostpointercapture redesenha). Antes, cada quadro do arraste mandava pty_resize a todos.
 let fitFrame = 0;
+function fitCurrent() {
+  const ck = currentKey();
+  const pane = ck && envs.get(ck)?.panes[tab];
+  if (pane) fitPane(pane);
+}
 new ResizeObserver(() => {
-  if (fitFrame || document.body.classList.contains("resizing")) return;
+  if (fitFrame || document.body.classList.contains("resizing") || document.body.classList.contains("sliding")) return;
   fitFrame = requestAnimationFrame(() => {
     fitFrame = 0;
-    const ck = currentKey();
-    const pane = ck && envs.get(ck)?.panes[tab];
-    if (pane) fitPane(pane);
+    fitCurrent();
   });
 }).observe(panesEl);
 

@@ -183,7 +183,7 @@ A janela é um painel de partidas de estação. Cada projeto é uma plataforma, 
 
 Há dois materiais, que seguem o sistema operacional (`prefers-color-scheme`) até o botão de tema escolher outro: à noite, painel grafite; de dia, tabela impressa em esmalte branco. Os dois têm a mesma estrutura e os mesmos papéis; muda só a tinta. A densidade é de quadro de horários: linhas compactas, colunas fixas, números tabulares, nenhum cartão no painel. A hierarquia vem da tinta (cheia no que está em serviço, meia-tinta no resto) e não de tamanho nem de cor.
 
-O mundo recusa a árvore de arquivos estilo IDE (Explorer + quick-open em cinza VS Code). O movimento é mecânico, em passos discretos sem easing, e só acontece quando um estado muda.
+O mundo recusa a árvore de arquivos estilo IDE (Explorer + quick-open em cinza VS Code). O movimento é mecânico, em passos discretos sem easing, e só acontece quando um estado muda. A única exceção é o painel recolhendo e abrindo, que desliza suave (ver Layout).
 
 **Key Characteristics:**
 - Palheta split-flap de 7 caracteres como assinatura do estado.
@@ -191,7 +191,7 @@ O mundo recusa a árvore de arquivos estilo IDE (Explorer + quick-open em cinza 
 - Tinta cheia só no que está em serviço; meia-tinta no resto.
 - Barlow Semi Condensed em caixa-alta para rótulos, números tabulares em tudo.
 - Plano: profundidade só nas superfícies flutuantes.
-- Movimento em degraus (`steps`), nunca em curva.
+- Movimento em degraus (`steps`), nunca em curva; só o painel recolhendo e abrindo desliza em curva.
 
 ## Colors
 
@@ -250,7 +250,7 @@ A marca na barra lateral redesenha a geometria da logo (a palheta H) com `--mark
 
 ## Layout
 
-Duas colunas: a barra lateral (`--sidebar-w`, padrão 300px (280 cortava "feat/accounts-pay…"), redimensionável por uma alça de 5px (11px de área de clique, o excedente do lado do terminal) até deixar 440px para a área principal, limite refeito quando a janela ou o zoom mudam; `Ctrl+Shift+B` recolhe) e a área principal. Abaixo de 640px CSS (janela pequena ou zoom alto), os dois pisos (200px de painel e 440px de área) não cabem lado a lado: o painel começa fechado e abre por cima do terminal, com fundo `rail`, fio `rule` e a sombra Lateral, e fecha ao escolher uma worktree, com Esc em qualquer controle dele, com um clique no terminal ou quando o Tab sai dele (o botão de recolher fica debaixo do painel); a preferência salva não muda e volta quando a janela alarga. Ambas abrem com uma faixa de 44px separada por um fio de 1px (marca à esquerda; destino, abas, outros rodando e ajuda à direita). Embaixo da faixa da área principal, uma segunda faixa de 36px (`#strip`, fundo `board`, fio `rule` embaixo) existe só enquanto tem o que dizer: a troca em andamento e as falhas. Vazia, fica com altura zero, e não `display: none`, para a região viva da falha já existir quando ela chegar; o terminal desce 36px enquanto ela está lá. O terminal ocupa todo o restante, com respiro de `8px 4px 4px 12px`. Sem worktree aberta, o estado vazio ocupa esse lugar ancorado no topo à esquerda (`32px 40px`, até 560px), como o texto do terminal: centrado, flutuava num vão grande. No primeiro uso (sem projeto), ele mostra a troca em três linhas de painel, com as palhetas de verdade: PARANDO "a worktree anterior recebe Ctrl+C", AGUARDA "a nova espera as portas liberarem", RODANDO "API e front sobem, cada um no seu terminal".
+Duas colunas: a barra lateral (`--sidebar-w`, padrão 300px (280 cortava "feat/accounts-pay…"), redimensionável por uma alça de 5px (11px de área de clique, o excedente do lado do terminal) até deixar 440px para a área principal, limite refeito quando a janela ou o zoom mudam; `Ctrl+Shift+B` recolhe; recolher e abrir deslizam o painel pela própria largura em 220ms, `cubic-bezier(0.2, 0, 0, 1)`, desligado com reduzir movimento. É a única curva do sistema: em 3 degraus, o painel inteiro saltando pela janela parecia um tranco, não uma palheta. O terminal não se reajusta a cada quadro do deslize, só no fim, como no arraste da alça) e a área principal. Abaixo de 640px CSS (janela pequena ou zoom alto), os dois pisos (200px de painel e 440px de área) não cabem lado a lado: o painel começa fechado e abre por cima do terminal, com fundo `rail`, fio `rule` e a sombra Lateral, e fecha ao escolher uma worktree, com Esc em qualquer controle dele, com um clique no terminal ou quando o Tab sai dele (o botão de recolher fica debaixo do painel); a preferência salva não muda e volta quando a janela alarga. Ambas abrem com uma faixa de 44px separada por um fio de 1px (marca à esquerda; destino, abas, outros rodando e ajuda à direita). Embaixo da faixa da área principal, uma segunda faixa de 36px (`#strip`, fundo `board`, fio `rule` embaixo) existe só enquanto tem o que dizer: a troca em andamento e as falhas. Vazia, fica com altura zero, e não `display: none`, para a região viva da falha já existir quando ela chegar; o terminal desce 36px enquanto ela está lá. O terminal ocupa todo o restante, com respiro de `8px 4px 4px 12px`. Sem worktree aberta, o estado vazio ocupa esse lugar ancorado no topo à esquerda (`32px 40px`, até 560px), como o texto do terminal: centrado, flutuava num vão grande. No primeiro uso (sem projeto), ele mostra a troca em três linhas de painel, com as palhetas de verdade: PARANDO "a worktree anterior recebe Ctrl+C", AGUARDA "a nova espera as portas liberarem", RODANDO "API e front sobem, cada um no seu terminal".
 
 O ritmo é denso e regular em passos de 2px: 4, 6, 8, 10, 14 e 22px. A margem lateral do painel é 14px (`gutter`) em todas as linhas, cabeçalhos de plataforma e no rodapé ("Novo projeto"); linhas têm 5px de respiro vertical; plataformas se separam por 10px. O nome alinha na margem de 14px e a palheta fica à direita dele, na coluna de situação de um painel de partidas, encostada na margem direita; linha nunca aberta não tem palheta nem reserva a coluna: o nome usa os ~80px justo onde ainda não há estado, e a palheta entra (virando) quando a linha abre. Os nomes alinham pela esquerda, então nada pula. Superfícies flutuantes: paleta 560px, diálogos 500px (ancorados a 8vh do topo, até 84vh: um erro ou a lista crescem para baixo e o diálogo não pula; em janela de até 860px de altura, a 16px do topo e até a altura menos 32px, para o Par do editar ficar à vista), ajuda 640px em duas colunas, atalhos | estados, com o leitor de tela embaixo atravessando as duas (uma coluna abaixo de 560px; até a altura da janela, com rolagem, e até a largura da janela menos 24px), paleta até a altura da janela (a lista cede e o rodapé fica à vista), todas limitadas a 90–92% da largura.
 
@@ -339,7 +339,7 @@ O estado de cada worktree em 7 caracteres.
 - **Do** mostrar estado só pela palheta e pelas três cores de estado (`run` de pé, `start`/`wait` em movimento, `fail` falha).
 - **Do** usar tinta cheia (`ink`) apenas no que está em serviço; o resto em `ink-2`.
 - **Do** desenhar ícones como SVG de traço 1.5 em viewBox 16 (16px, inline 12px), em `currentColor`.
-- **Do** animar só em degraus (`steps`), só na mudança de estado (ou enquanto um estado dura, como o reler lendo), e desligar com `prefers-reduced-motion`.
+- **Do** animar só em degraus (`steps`), só na mudança de estado (ou enquanto um estado dura, como o reler lendo), e desligar com `prefers-reduced-motion`. A exceção é o painel recolhendo e abrindo, que desliza suave.
 - **Do** dar a toda superfície flutuante borda `rule` de 1px, raio 6px, fundo `rail` e a sombra Flutuante.
 - **Do** manter o terminal sobre `board`, sem moldura.
 - **Do** definir todo valor novo nas duas paletas (noite e dia) com contraste AA.
@@ -347,7 +347,7 @@ O estado de cada worktree em 7 caracteres.
 ### Don't:
 - **Don't** introduzir cor de acento na interface: foco, seleção e botão primário são tinta neutra.
 - **Don't** pôr cartões ou sombras no painel; linhas são linhas, separadas por respiro e fio.
-- **Don't** usar easing em curva nem transições contínuas.
+- **Don't** usar easing em curva nem transições contínuas, fora o deslize do painel.
 - **Don't** usar caracteres ou glifos como ícone; setas e chevrons são desenhados.
 - **Don't** usar `ink-3` para texto que precise ser lido.
 - **Don't** recolorir `app-icon.svg`; a logo é compromisso de marca.
