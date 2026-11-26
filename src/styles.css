@@ -798,14 +798,6 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
   stroke-width: 2.25;
 }
 
-/* desabilitado: a mesma meia opacidade dos botões de texto; em ink-3 ele ficava perto demais do ícone habilitado (ink-2) */
-.icon-btn:disabled,
-.icon-btn[aria-disabled="true"] {
-  opacity: 0.5;
-  background: none;
-  cursor: not-allowed;
-}
-
 .platform .problem {
   margin: 0 14px 6px;
   color: var(--fail);
@@ -967,7 +959,11 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
   flex-shrink: 0;
 }
 
-.line .branch > .rest {
+.line .branch > .rest,
+#destination .where > .project,
+#destination .where > .branch-name,
+#switching .fact .nm,
+#running .other .label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1384,13 +1380,6 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
   display: none;
 }
 
-#destination .where > .project,
-#destination .where > .branch-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* encolhe primeiro, mas para em "LE…": sem nenhuma letra, a "/" ficaria órfã */
 #destination .where > .project {
   flex-shrink: 1000;
@@ -1561,7 +1550,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 }
 
 #halt-tab:not([hidden])::before,
-#halt-tab[hidden] + #halt-all::before {
+#halt-tab[hidden] + #halt-all::before,
+#switching [data-act="force"]::before {
   content: "";
   position: absolute;
   left: -9px;
@@ -1579,7 +1569,10 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
   visibility: hidden;
 }
 
-.halt[aria-disabled="true"] {
+/* desabilitado: a mesma meia opacidade dos botões de texto; em ink-3 ele ficava perto demais do ícone habilitado (ink-2) */
+.halt[aria-disabled="true"],
+.icon-btn:disabled,
+.icon-btn[aria-disabled="true"] {
   opacity: 0.5;
   background: none;
   cursor: not-allowed;
@@ -1647,12 +1640,6 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
   font-weight: 600;
 }
 
-#switching .fact .nm {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* Sem largura, quem cede primeiro é o nome de quem para (a linha dele diz PARANDO no painel); o destino é o que se
    procura. A 720 os dois cediam por igual: "acco… → lo…". */
 #switching .fact > .nm {
@@ -1701,7 +1688,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 }
 
 /* "depois sobe X" no SIGKILL: é o único que trunca */
-#switching > .then {
+#switching > .then,
+#palette .note .ends-text > strong {
   flex-shrink: 1;
   min-width: 0;
   overflow: hidden;
@@ -1719,15 +1707,6 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 #switching [data-act="force"] {
   margin-left: 4px;
   position: relative;
-}
-
-#switching [data-act="force"]::before {
-  content: "";
-  position: absolute;
-  left: -9px;
-  top: 4px;
-  bottom: 4px;
-  border-left: 1px solid var(--rule);
 }
 
 /* "Parou em 1,8 s · feat/x": o fechamento da troca, depois das ações (e dos outros projetos); some sozinho em 8 s.
@@ -1826,7 +1805,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 }
 
 /* × da falha: dispensa antes da próxima troca. Alvo de 24px, desenho em meia-tinta, como o lápis */
-#alert > .note-x {
+#alert > .note-x,
+#term-search button {
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -1909,11 +1889,6 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 }
 
 /* sem espaço, trunca o nome; a palheta (o estado) fica sempre inteira */
-#running .other .label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 #running .other > :not(.label) {
   flex-shrink: 0;
@@ -1925,7 +1900,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 #last-stop .project,
 #alert .project,
 #term-note .project,
-#palette .note .project {
+#palette .note .project,
+dialog.form .where .project {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -2183,19 +2159,6 @@ body:not(.sidebar-off) #running {
 }
 
 /* × de 24px, desenho em meia-tinta, como o da falha */
-#term-search button {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: var(--ink-2);
-  cursor: pointer;
-}
 
 #term-search button:hover {
   background: var(--flap);
@@ -2420,7 +2383,8 @@ dialog.form .pick[aria-disabled="true"] {
   cursor: pointer;
 }
 
-#settings input:is([type="checkbox"], [type="radio"]) {
+#settings input:is([type="checkbox"], [type="radio"]),
+dialog.form input[type="checkbox"] {
   width: 15px;
   height: 15px;
   margin: 0 6px 0 0;
@@ -2591,7 +2555,8 @@ dialog.form .pick[aria-disabled="true"] {
   cursor: pointer;
 }
 
-#palette li .label {
+#palette li .label,
+dialog.form .found code {
   min-width: 0;
   color: var(--ink-2);
   white-space: nowrap;
@@ -2673,13 +2638,6 @@ dialog.form .pick[aria-disabled="true"] {
 
 #palette .note .ends-text > * {
   flex-shrink: 0;
-}
-
-#palette .note .ends-text > strong {
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* mini palheta ENCERRA na frente do aviso "Encerra X": a mesma prévia do painel */
@@ -2825,14 +2783,6 @@ dialog.form select[name="project"] {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-dialog.form input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  margin: 0 6px 0 0;
-  vertical-align: -2px;
-  accent-color: var(--ink);
 }
 
 /* o rótulo inteiro é o alvo da caixa de 15px: 24px de altura no mínimo (WCAG 2.5.8) */
@@ -3082,14 +3032,6 @@ dialog.form .found .branch {
   font-weight: 600;
 }
 
-dialog.form .found code {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink-2);
-}
-
 dialog.form .side-error,
 dialog.form .error {
   margin: 0 0 12px;
@@ -3117,13 +3059,6 @@ dialog.form .side-error .raw {
 
 dialog.form .where {
   margin-top: -10px;
-}
-
-dialog.form .where .project {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 dialog.form .open-hint {

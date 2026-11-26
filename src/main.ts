@@ -208,6 +208,7 @@ moreMenu.addEventListener("toggle", (e) => {
           type: "button",
           className: "more-item other",
           title: o.title,
+          ariaLabel: o.title,
           onclick: () => {
             moreMenu.hidePopover();
             if (wt) select(project, wt);
@@ -216,7 +217,6 @@ moreMenu.addEventListener("toggle", (e) => {
         el("span", { className: "where" }, el("span", { className: "project", textContent: project }), ` / ${wt ? proseName(wt.label) : ""}`),
         o.querySelector(".flap")!.cloneNode(true),
       );
-      b.setAttribute("aria-label", o.title);
       return b;
     }),
     ...cededActions().map((src) => {
@@ -254,14 +254,15 @@ moreMenu.addEventListener("toggle", (e) => {
   moreMenu.querySelector<HTMLElement>("button")?.focus();
 });
 
-// Setas andam pelos itens, como no painel e nas abas (só o Tab andava).
-moreMenu.addEventListener("keydown", (e) => {
+/** Setas andam pelos itens do ⋯ e do menu da linha, como no painel e nas abas (só o Tab andava). */
+function menuArrows(e: KeyboardEvent) {
   if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
   e.preventDefault();
-  const items = [...moreMenu.querySelectorAll<HTMLElement>("button")];
+  const items = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("button")];
   const at = items.indexOf(document.activeElement as HTMLElement);
   items[(at + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
-});
+}
+moreMenu.addEventListener("keydown", menuArrows);
 
 urlEl.addEventListener("click", (e) => {
   e.preventDefault();
@@ -561,9 +562,8 @@ const shown = new Map<string, string>();
 function flap(state: LineState, id: string, text = FLAP[state]) {
   const changed = shown.has(id) && shown.get(id) !== `${state}:${text}`;
   shown.set(id, `${state}:${text}`);
-  const f = el("span", { className: `flap${changed ? " flip" : ""}` }, el("span", { textContent: text }));
+  const f = el("span", { className: `flap${changed ? " flip" : ""}`, ariaHidden: "true" }, el("span", { textContent: text }));
   f.dataset.state = state;
-  f.setAttribute("aria-hidden", "true");
   return f;
 }
 
@@ -708,8 +708,7 @@ function branchText(branch: string) {
 // ---------- terminais ----------
 
 async function createPane(t: Tab, side: Side, parent: HTMLElement, project: string): Promise<Pane> {
-  const paneEl = el("div", { className: "pane off" });
-  paneEl.setAttribute("role", "tabpanel");
+  const paneEl = el("div", { className: "pane off", role: "tabpanel" });
   paneEl.setAttribute("aria-labelledby", `tab-${t}`);
   parent.append(paneEl);
   const term = new Terminal({
@@ -1191,7 +1190,7 @@ function render(focus = false) {
       if (!wt[t]) continue;
       const b = el(
         "button",
-        { type: "button", id: `tab-${t}`, tabIndex: t === tab ? 0 : -1, onclick: () => setTab(t, true) },
+        { type: "button", id: `tab-${t}`, role: "tab", ariaSelected: String(t === tab), tabIndex: t === tab ? 0 : -1, onclick: () => setTab(t, true) },
         el("span", { textContent: TAB_LABEL[t] }),
         down.includes(t) ? el("span", { className: "sr", textContent: tr(" (caiu)") }) : null,
         parked.includes(t) ? el("span", { className: "sr", textContent: tr(" (parado à mão)") }) : null,
@@ -1202,8 +1201,6 @@ function render(focus = false) {
       b.classList.toggle("halting", stoppingTabs.includes(t));
       if (down.includes(t)) b.title = tr("Nada rodando no {0}", TAB_LABEL[t]);
       if (parked.includes(t)) b.title = tr("{0} parado à mão (Ctrl+Shift+S sobe)", TAB_LABEL[t]);
-      b.setAttribute("role", "tab");
-      b.setAttribute("aria-selected", String(t === tab));
       const pane = env?.panes[t];
       if (pane) b.setAttribute("aria-controls", pane.el.id);
       tabsEl.append(b);
@@ -1536,6 +1533,7 @@ function lineButton(project: string, wt: Worktree) {
       type: "button",
       className: `line${live ? " live" : ""}`,
       tabIndex: -1,
+      ariaCurrent: currentKey() === k ? "true" : null,
       // O estado por extenso no title: o fio e a falta de palheta não se explicam sozinhos.
       title: [wt.label, STATE_HINT[state] ?? say(project, wt, state), git.text, endsText].filter(Boolean).join("\n"),
       ariaLabel: `${spokenLabel(wt.label)}${soloSay(wt)}: ${say(project, wt, state)}${git.text ? `; ${git.text}` : ""}`,
@@ -1560,7 +1558,6 @@ function lineButton(project: string, wt: Worktree) {
     b.setAttribute("aria-describedby", id);
   }
   b.dataset.key = k;
-  if (currentKey() === k) b.setAttribute("aria-current", "true");
   return b;
 }
 
@@ -1569,9 +1566,7 @@ function lineButton(project: string, wt: Worktree) {
 function gitBadge(g: ReturnType<typeof gitSummary>) {
   if (!g.dirty && !g.ahead && !g.behind) return null;
   const ab = (n: number, d: string) => (n ? el("span", {}, icon(d), String(n)) : null);
-  const b = el("span", { className: "git" }, g.dirty ? el("span", { className: "dirty" }) : null, ab(g.ahead, DIR.start!), ab(g.behind, DIR.stop!));
-  b.setAttribute("aria-hidden", "true");
-  return b;
+  return el("span", { className: "git", ariaHidden: "true" }, g.dirty ? el("span", { className: "dirty" }) : null, ab(g.ahead, DIR.start!), ab(g.behind, DIR.stop!));
 }
 
 // Rodando ou no meio de uma troca: não edita (renomear ou mover a pasta embaixo de um dev server o derruba).
@@ -1592,6 +1587,7 @@ function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
       tabIndex: -1,
       title: busyNow ? tr("{0}, {1}: troque para outra worktree do projeto antes de {2}", wt.label, say(project, wt, lineState(project, wt)), verb.toLowerCase()) : `${verb} ${wt.label}`,
       ariaLabel: busyNow ? tr("{0} {1}: indisponível, {2}; troque para outra worktree do projeto antes", verb, spoken, say(project, wt, lineState(project, wt))) : `${verb} ${spoken}`,
+      ariaDisabled: busyNow ? "true" : null,
       onclick: () => {
         const fresh = findWt(project, wt.id);
         if (fresh && !BUSY.includes(lineState(project, fresh))) open(project, fresh);
@@ -1599,7 +1595,6 @@ function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
     },
     icon(path),
   );
-  if (busyNow) b.setAttribute("aria-disabled", "true");
   b.dataset.key = `${kind}:${key(project, wt.id)}`;
   return b;
 }
@@ -1681,13 +1676,7 @@ rowMenu.addEventListener("toggle", (e) => {
   if (document.activeElement === document.body || rowMenu.contains(document.activeElement)) byKey(k)?.focus();
 });
 
-rowMenu.addEventListener("keydown", (e) => {
-  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-  e.preventDefault();
-  const items = [...rowMenu.querySelectorAll<HTMLElement>("button")];
-  const at = items.indexOf(document.activeElement as HTMLElement);
-  items[(at + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
-});
+rowMenu.addEventListener("keydown", menuArrows);
 
 const TRASH_ICON = "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v3.5M9 7v3.5";
 const PARALLEL_ICON = "M5.5 2.5h8v7h-8ZM5.5 6.5H2.5v7H11V9.5";
@@ -1717,24 +1706,33 @@ const openProblems = new Set<string>();
 // Último painel montado: igual, não troca os nós (um clique entre mousedown e mouseup cairia num nó descartado).
 let boardHtml: string[] = [];
 
+/** Erro recolhível do painel (de um projeto ou do config): aberto ou fechado sobrevive ao render, por `id` em openProblems. */
+function problemBox(id: string, summary: string, code: string, ...extra: Node[]) {
+  return el(
+    "details",
+    { className: "problem", open: openProblems.has(id), ontoggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? openProblems.add(id) : openProblems.delete(id)) },
+    el("summary", { textContent: summary }),
+    el("code", { textContent: code }),
+    ...extra,
+    el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") }),
+  );
+}
+
 function renderBoard() {
   // O painel é recriado quando muda; o foco do teclado volta para o mesmo controle (linha, placa, +, erro), pela data-key.
   const focusedKey = board.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.key : undefined;
   const sections = config.projects.map((p) => {
-    const add = el(
-      "button",
-      {
-        type: "button",
-        className: "icon-btn",
-        title: p.error ? tr("Corrija o erro do projeto para criar worktrees") : tr("Nova worktree em {0} (Ctrl+Shift+N)", p.name),
-        ariaLabel: p.error ? tr("Nova worktree em {0}: indisponível, corrija o erro do projeto", p.name) : tr("Nova worktree em {0}", p.name),
-        // aria-disabled e não disabled: o teclado e o leitor de tela também chegam no motivo.
-        onclick: () => !p.error && openAddDialog(p.name),
-      },
-      icon("M8 3v10M3 8h10"),
-    );
-    if (p.error) add.setAttribute("aria-disabled", "true");
-    add.dataset.key = `add:${p.name}`;
+    // Criar e remover worktrees: com erro no projeto, aria-disabled e não disabled (o teclado e o leitor de tela também
+    // chegam no motivo); [title, nome acessível] com e sem erro.
+    const gated = (id: string, path: string, act: () => void, ok: [string, string], err: [string, string]) => {
+      const [title, ariaLabel] = p.error ? err : ok;
+      const b = el("button", { type: "button", className: "icon-btn", title, ariaLabel, ariaDisabled: p.error ? "true" : null, onclick: () => !p.error && act() }, icon(path));
+      b.dataset.key = `${id}:${p.name}`;
+      return b;
+    };
+    const add = gated("add", "M8 3v10M3 8h10", () => openAddDialog(p.name),
+      [tr("Nova worktree em {0} (Ctrl+Shift+N)", p.name), tr("Nova worktree em {0}", p.name)],
+      [tr("Corrija o erro do projeto para criar worktrees"), tr("Nova worktree em {0}: indisponível, corrija o erro do projeto", p.name)]);
     const par = el(
       "button",
       {
@@ -1742,38 +1740,17 @@ function renderBoard() {
         className: "icon-btn parallel",
         title: tr("Modo paralelo em {0}: {1}", p.name, p.parallel ? tr("ligado, as worktrees sobem juntas") : tr("desligado, abrir uma encerra a outra")),
         ariaLabel: tr("Modo paralelo em {0}", p.name),
+        ariaPressed: String(p.parallel),
         onclick: () => toggleParallel(p.name),
       },
       icon(PARALLEL_ICON),
     );
-    par.setAttribute("aria-pressed", String(p.parallel));
     par.dataset.key = `parallel:${p.name}`;
-    const bulk = el(
-      "button",
-      {
-        type: "button",
-        className: "icon-btn",
-        title: p.error ? tr("Corrija o erro do projeto para remover worktrees") : tr("Remover worktrees de {0}…", p.name),
-        ariaLabel: p.error ? tr("Remover worktrees de {0}: indisponível, corrija o erro do projeto", p.name) : tr("Remover worktrees de {0}", p.name),
-        onclick: () => !p.error && openBulkRemove(p.name),
-      },
-      icon(TRASH_ICON),
-    );
-    if (p.error) bulk.setAttribute("aria-disabled", "true");
-    bulk.dataset.key = `bulk:${p.name}`;
+    const bulk = gated("bulk", TRASH_ICON, () => openBulkRemove(p.name),
+      [tr("Remover worktrees de {0}…", p.name), tr("Remover worktrees de {0}", p.name)],
+      [tr("Corrija o erro do projeto para remover worktrees"), tr("Remover worktrees de {0}: indisponível, corrija o erro do projeto", p.name)]);
     const problem = p.error
-      ? el(
-          "details",
-          {
-            className: "problem",
-            open: openProblems.has(p.name),
-            ontoggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? openProblems.add(p.name) : openProblems.delete(p.name)),
-          },
-          el("summary", { textContent: projectErrorSummary(p.error) }),
-          el("code", { textContent: p.error }),
-          el("p", {}, tr("Ajuste o caminho em "), el("code", { textContent: CONFIG_PATH }), tr(" e volte para a janela: o painel relê sozinho.")),
-          el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") }),
-        )
+      ? problemBox(p.name, projectErrorSummary(p.error), p.error, el("p", {}, tr("Ajuste o caminho em "), el("code", { textContent: CONFIG_PATH }), tr(" e volte para a janela: o painel relê sozinho.")))
       : null;
     if (problem) keyFocusables(problem, `problem:${p.name}`);
     // Recolhido, o projeto ainda mostra a worktree ativa: o que está de pé não some da tela.
@@ -1786,6 +1763,7 @@ function renderBoard() {
       {
         type: "button",
         className: "fold",
+        ariaExpanded: String(open),
         title: `${open ? tr("Recolher") : tr("Expandir")} ${p.name}${p.error && !open ? `\n${projectErrorSummary(p.error)}` : ""}`,
         onclick: () => {
           open ? collapsed.add(p.name) : collapsed.delete(p.name);
@@ -1799,7 +1777,6 @@ function renderBoard() {
       hidden ? el("span", { className: "count", textContent: `+${hidden}`, ariaHidden: "true" }) : null,
       hidden ? el("span", { className: "sr", textContent: tr(", {0} ocultas", hidden) }) : null,
     );
-    fold.setAttribute("aria-expanded", String(open));
     fold.dataset.key = `fold:${p.name}`;
     // Ordem do git, fixa: como num painel de partidas, só a palheta vira; a linha não sai do lugar sob o cursor.
     return el(
@@ -1814,17 +1791,7 @@ function renderBoard() {
   // Config quebrado com uma worktree aberta (o centro está no terminal): o painel continua com a última leitura boa e diz por que parou de atualizar.
   if (configError && config.projects.length && current)
     sections.unshift(
-      el(
-        "section",
-        { className: "platform" },
-        el(
-          "details",
-          { className: "problem", open: openProblems.has(CONFIG_PATH), ontoggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? openProblems.add(CONFIG_PATH) : openProblems.delete(CONFIG_PATH)) },
-          el("summary", { textContent: tr("O config tem um problema; o painel mostra a última leitura boa.") }),
-          el("code", { textContent: configError }),
-          el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") }),
-        ),
-      ),
+      el("section", { className: "platform" }, problemBox(CONFIG_PATH, tr("O config tem um problema; o painel mostra a última leitura boa."), configError)),
     );
   if (configError && config.projects.length && current) keyFocusables(sections[0], "problem:config");
   // Sem projeto: só a placa em branco. A explicação e a ação ficam no centro da janela; uma linha
@@ -2437,15 +2404,13 @@ function renderPalette(reset = false) {
           const project = el("span", { className: "project", textContent: it.project });
           markHits(label, terms, it.wt.label.toLowerCase(), it.project.toLowerCase());
           markHits(project, terms, it.project.toLowerCase(), it.wt.label.toLowerCase());
-          const li = el("li", { id: `opt-${i}`, onclick: () => choose(it) }, label, project, flap(state, `pal:${key(it.project, it.wt.id)}`, flapText(it.project, it.wt, state)));
+          const li = el("li", { id: `opt-${i}`, role: "option", ariaSelected: String(i === sel), onclick: () => choose(it) }, label, project, flap(state, `pal:${key(it.project, it.wt.id)}`, flapText(it.project, it.wt, state)));
           // Nome falado inteiro, com pausas e o lado: os spans juntos liam "hotfix/loginATUAL interno : rodando".
           // O que o Enter mata também na opção: a prévia ENCERRA é visual, e o rodapé só fala quando muda.
           const kills = wouldStop(it.project, it.wt.id);
           li.setAttribute("aria-label", `${spokenLabel(it.wt.label)}${isCurrent ? tr(", atual") : ""}${soloSay(it.wt)}, ${it.project}: ${say(it.project, it.wt, state)}${kills ? tr("; encerra {0}", spokenLabel(kills.label)) : ""}`);
           // Tinta cheia só no que está em serviço (rodando, em movimento, a atual), como no painel.
           if (LIVE.includes(state) || isCurrent) li.classList.add("live");
-          li.setAttribute("role", "option");
-          li.setAttribute("aria-selected", String(i === sel));
           return li;
         })
       : [
