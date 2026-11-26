@@ -32,14 +32,14 @@
   --ink-3: #777875;
   --run: #4cc38a;
   --start: #f2b33d;
-  --wait: #f2b33d;
+  --wait: var(--start);
   --fail: #f26d6d;
   /* ENCERRA (prévia): contorno de quem vai parar. À noite o âmbar vivo de 1px basta. */
   --ends-line: 1px;
   --ends-bg: none;
-  --focus: #ecebe6;
-  --primary: #ecebe6;
-  --primary-ink: #131417;
+  --focus: var(--ink);
+  --primary: var(--ink);
+  --primary-ink: var(--board);
   --scrim: rgb(10 11 13 / 72%);
   --selection: rgb(236 235 230 / 22%);
   /* marca: a palheta H do app-icon.svg; o verde da travessa é o da marca nos dois temas */
@@ -83,9 +83,9 @@
   --flap-low: #c3c5bf;
   --flap-bot: var(--flap-low);
   --flap-ink: #45474c;
-  --flap-run: #15161a;
-  --flap-start: #15161a;
-  --flap-fail: #15161a;
+  --flap-run: var(--ink);
+  --flap-start: var(--ink);
+  --flap-fail: var(--ink);
   /* corpos de dia: verde de pé, âmbar em movimento (o da noite), vermelho falha; quem morre é o negativo do âmbar,
      grafite com tinta âmbar (as metades e o --start da noite) */
   --body-run-top: #6ccf9c;
@@ -101,15 +101,11 @@
   --ink-3: #6e7074;
   --run: #0d6a3f;
   --start: #855000;
-  --wait: #855000;
   --fail: #b3261e;
   /* De dia o âmbar escuro de 1px ficava abaixo do RODANDO verde que ele substitui: lia como "o estado sumiu", não como
      "isto vai parar". 2px e um creme âmbar por dentro (#855000 a 5,45:1), sem as metades nem o entalhe de palheta. */
   --ends-line: 2px;
   --ends-bg: #f7e7c0;
-  --focus: #15161a;
-  --primary: #15161a;
-  --primary-ink: #f4f5f3;
   /* véu de tinta, não de esmalte: claro sobre claro, o aviso e os diálogos não se destacavam do terminal */
   --scrim: rgb(21 22 26 / 24%);
   --selection: rgb(21 22 26 / 16%);
@@ -141,10 +137,6 @@
   --run: #abb94f;
   --start: #ccae4f;
   --fail: #eb8c8b;
-  --wait: #ccae4f;
-  --focus: #eee8d5;
-  --primary: #eee8d5;
-  --primary-ink: #002b36;
   --selection: rgb(238 232 213 / 22%);
   --body-move-bot: #cdaf51;
   --body-move-top: #d4bb6b;
@@ -164,14 +156,7 @@
   --run: #505c00;
   --start: #6d5200;
   --fail: #a52623;
-  --wait: #6d5200;
-  --focus: #073642;
-  --primary: #073642;
-  --primary-ink: #fdf6e3;
   --selection: rgb(7 54 66 / 16%);
-  --flap-run: #073642;
-  --flap-start: #073642;
-  --flap-fail: #073642;
   --flap-ink: #385c62;
   --body-run-bot: #bac66f;
   --body-run-top: #c4cf85;
@@ -197,10 +182,6 @@
   --run: #bdc035;
   --start: #fabd2f;
   --fail: #fd9285;
-  --wait: #fabd2f;
-  --focus: #ebdbb2;
-  --primary: #ebdbb2;
-  --primary-ink: #282828;
   --selection: rgb(235 219 178 / 22%);
   --body-move-bot: #fabd2f;
   --body-move-top: #fbc74e;
@@ -220,14 +201,7 @@
   --run: #5b570a;
   --start: #764d0d;
   --fail: #9d0006;
-  --wait: #764d0d;
-  --focus: #3c3836;
-  --primary: #3c3836;
-  --primary-ink: #fbf1c7;
   --selection: rgb(60 56 54 / 16%);
-  --flap-run: #3c3836;
-  --flap-start: #3c3836;
-  --flap-fail: #3c3836;
   --flap-ink: #5a554d;
   --body-run-bot: #cdcf65;
   --body-run-top: #d4d67c;
@@ -253,10 +227,6 @@
   --run: #a6e3a1;
   --start: #f9e2af;
   --fail: #f38eab;
-  --wait: #f9e2af;
-  --focus: #cdd6f4;
-  --primary: #cdd6f4;
-  --primary-ink: #1e1e2e;
   --selection: rgb(205 214 244 / 22%);
   --body-move-bot: #f9e2af;
   --body-move-top: #fae6bb;
@@ -276,14 +246,7 @@
   --run: #28651b;
   --start: #7b4e10;
   --fail: #b20d30;
-  --wait: #7b4e10;
-  --focus: #393b4f;
-  --primary: #393b4f;
-  --primary-ink: #eff1f5;
   --selection: rgb(57 59 79 / 16%);
-  --flap-run: #393b4f;
-  --flap-start: #393b4f;
-  --flap-fail: #393b4f;
   --flap-ink: #56586a;
   --body-run-bot: #a6e3a1;
   --body-run-top: #b3e7af;
@@ -309,10 +272,6 @@
   --run: #9ece6a;
   --start: #e0af68;
   --fail: #f88096;
-  --wait: #e0af68;
-  --focus: #c0caf5;
-  --primary: #c0caf5;
-  --primary-ink: #1a1b26;
   --selection: rgb(192 202 245 / 22%);
   --body-move-bot: #e0af68;
   --body-move-top: #e5bb7f;
@@ -332,14 +291,7 @@
   --run: #3f5429;
   --start: #5f492a;
   --fail: #8b2f2f;
-  --wait: #5f492a;
-  --focus: #2b3048;
-  --primary: #2b3048;
-  --primary-ink: #e1e2e7;
   --selection: rgb(43 48 72 / 16%);
-  --flap-run: #2b3048;
-  --flap-start: #2b3048;
-  --flap-fail: #2b3048;
   --flap-ink: #494d62;
   --body-run-bot: #9ece6a;
   --body-run-top: #add580;
@@ -602,11 +554,6 @@ kbd {
   --state-bot: var(--body-fail-bot);
 }
 
-/* ENCERRA é prévia: só o contorno, na cor de quem está em movimento, nunca a tinta do corpo */
-.flap.preview {
-  color: var(--wait);
-}
-
 /* "SEM FRONT" e "API PARADA" passam dos 7 caracteres: só estas palhetas alargam, e a falha se destaca na coluna.
    Parado à mão ("held") tem a palheta neutra de INATIVA, nos dois temas: foi pedido, não caiu. */
 .flap:is([data-state="part"], [data-state="held"]) {
@@ -658,6 +605,7 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
 /* ENCERRA é prévia, não estado: a forma da palheta (metades e entalhes) fica para o que é verdade agora.
    Só o contorno, na cor de quem está em movimento. */
 .flap.preview {
+  color: var(--wait);
   background: var(--ends-bg);
   box-shadow: inset 0 0 0 var(--ends-line) currentColor;
 }
@@ -846,14 +794,6 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
   stroke-width: 2.25;
 }
 
-/* desabilitado: a mesma meia opacidade dos botões de texto; em ink-3 ele ficava perto demais do ícone habilitado (ink-2) */
-.icon-btn:disabled,
-.icon-btn[aria-disabled="true"] {
-  opacity: 0.5;
-  background: none;
-  cursor: not-allowed;
-}
-
 .platform .problem {
   margin: 0 14px 6px;
   color: var(--fail);
@@ -1011,11 +951,11 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
 
 /* Truncagem em etapas (fitBranches); o title tem o nome inteiro. Primeiro o meio do nome ("calculo-de-comis…agrupados"):
    o tipo e o fim ficam. Se o começo ficar com menos de 3em, o prefixo sai inteiro. O ellipsis do CSS é só a rede. */
-.line .branch .prefix {
-  flex-shrink: 0;
-}
-
-.line .branch > .rest {
+.line .branch > .rest,
+#destination .where > .project,
+#destination .where > .branch-name,
+#switching .fact .nm,
+#running .other .label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1033,6 +973,7 @@ body:has(header:not(.acted) :is(.halt, .more-item)[data-ends="all"]:is(:hover, :
 }
 
 .line .branch .prefix {
+  flex-shrink: 0;
   color: var(--ink-2);
 }
 
@@ -1432,13 +1373,6 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
   display: none;
 }
 
-#destination .where > .project,
-#destination .where > .branch-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* encolhe primeiro, mas para em "LE…": sem nenhuma letra, a "/" ficaria órfã */
 #destination .where > .project {
   flex-shrink: 1000;
@@ -1609,7 +1543,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 }
 
 #halt-tab:not([hidden])::before,
-#halt-tab[hidden] + #halt-all::before {
+#halt-tab[hidden] + #halt-all::before,
+#switching [data-act="force"]::before {
   content: "";
   position: absolute;
   left: -9px;
@@ -1627,7 +1562,10 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
   visibility: hidden;
 }
 
-.halt[aria-disabled="true"] {
+/* desabilitado: a mesma meia opacidade dos botões de texto; em ink-3 ele ficava perto demais do ícone habilitado (ink-2) */
+.halt[aria-disabled="true"],
+.icon-btn:disabled,
+.icon-btn[aria-disabled="true"] {
   opacity: 0.5;
   background: none;
   cursor: not-allowed;
@@ -1695,12 +1633,6 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
   font-weight: 600;
 }
 
-#switching .fact .nm {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* Sem largura, quem cede primeiro é o nome de quem para (a linha dele diz PARANDO no painel); o destino é o que se
    procura. A 720 os dois cediam por igual: "acco… → lo…". */
 #switching .fact > .nm {
@@ -1749,7 +1681,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 }
 
 /* "depois sobe X" no SIGKILL: é o único que trunca */
-#switching > .then {
+#switching > .then,
+#palette .note .ends-text > strong {
   flex-shrink: 1;
   min-width: 0;
   overflow: hidden;
@@ -1767,15 +1700,6 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 #switching [data-act="force"] {
   margin-left: 4px;
   position: relative;
-}
-
-#switching [data-act="force"]::before {
-  content: "";
-  position: absolute;
-  left: -9px;
-  top: 4px;
-  bottom: 4px;
-  border-left: 1px solid var(--rule);
 }
 
 /* "Parou em 1,8 s · feat/x": o fechamento da troca, depois das ações (e dos outros projetos); some sozinho em 8 s.
@@ -1874,7 +1798,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 }
 
 /* × da falha: dispensa antes da próxima troca. Alvo de 24px, desenho em meia-tinta, como o lápis */
-#alert > .note-x {
+#alert > .note-x,
+#term-search button {
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -1957,11 +1882,6 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 }
 
 /* sem espaço, trunca o nome; a palheta (o estado) fica sempre inteira */
-#running .other .label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 #running .other > :not(.label) {
   flex-shrink: 0;
@@ -1973,7 +1893,8 @@ body:not(.sidebar-off, .narrow) header.tight #destination .where > :is(.project,
 #last-stop .project,
 #alert .project,
 #term-note .project,
-#palette .note .project {
+#palette .note .project,
+dialog.form .where .project {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -2231,19 +2152,6 @@ body:not(.sidebar-off) #running {
 }
 
 /* × de 24px, desenho em meia-tinta, como o da falha */
-#term-search button {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: var(--ink-2);
-  cursor: pointer;
-}
 
 #term-search button:hover {
   background: var(--flap);
@@ -2468,7 +2376,8 @@ dialog.form .pick[aria-disabled="true"] {
   cursor: pointer;
 }
 
-#settings input:is([type="checkbox"], [type="radio"]) {
+#settings input:is([type="checkbox"], [type="radio"]),
+dialog.form input[type="checkbox"] {
   width: 15px;
   height: 15px;
   margin: 0 6px 0 0;
@@ -2639,7 +2548,8 @@ dialog.form .pick[aria-disabled="true"] {
   cursor: pointer;
 }
 
-#palette li .label {
+#palette li .label,
+dialog.form .found code {
   min-width: 0;
   color: var(--ink-2);
   white-space: nowrap;
@@ -2721,13 +2631,6 @@ dialog.form .pick[aria-disabled="true"] {
 
 #palette .note .ends-text > * {
   flex-shrink: 0;
-}
-
-#palette .note .ends-text > strong {
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* mini palheta ENCERRA na frente do aviso "Encerra X": a mesma prévia do painel */
@@ -2873,14 +2776,6 @@ dialog.form select[name="project"] {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-dialog.form input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  margin: 0 6px 0 0;
-  vertical-align: -2px;
-  accent-color: var(--ink);
 }
 
 /* o rótulo inteiro é o alvo da caixa de 15px: 24px de altura no mínimo (WCAG 2.5.8) */
@@ -3130,14 +3025,6 @@ dialog.form .found .branch {
   font-weight: 600;
 }
 
-dialog.form .found code {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink-2);
-}
-
 dialog.form .side-error,
 dialog.form .error {
   margin: 0 0 12px;
@@ -3165,13 +3052,6 @@ dialog.form .side-error .raw {
 
 dialog.form .where {
   margin-top: -10px;
-}
-
-dialog.form .where .project {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 dialog.form .open-hint {

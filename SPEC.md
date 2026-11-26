@@ -11,7 +11,7 @@ App desktop para trocar rapidamente entre worktrees de projetos com **API e fron
 
 ## Configuração
 
-Arquivo `~/.config/hotswap/config.json` (o app se chamava switch-terminal: na primeira abertura, `~/.config/switch-terminal/` e os dados do webview em `~/.local/share/dev.gabriel.switch-terminal/` mudam para as pastas do nome novo, se elas ainda não existirem). Projetos novos podem ser criados pela tela (veja abaixo); o resto (`manualPairs`, `baseBranch`, `stopTimeoutMs`, `editorCommand`, editar ou remover projeto; o `editor` é gravado pelo "Abrir com…") é à mão:
+Arquivo `~/.config/hotswap/config.json`. Projetos novos podem ser criados pela tela (veja abaixo); o resto (`manualPairs`, `baseBranch`, `stopTimeoutMs`, `editorCommand`, editar ou remover projeto; o `editor` é gravado pelo "Abrir com…") é à mão:
 
 ```json
 {

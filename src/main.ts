@@ -208,6 +208,7 @@ moreMenu.addEventListener("toggle", (e) => {
           type: "button",
           className: "more-item other",
           title: o.title,
+          ariaLabel: o.title,
           onclick: () => {
             moreMenu.hidePopover();
             if (wt) select(project, wt);
@@ -216,52 +217,35 @@ moreMenu.addEventListener("toggle", (e) => {
         el("span", { className: "where" }, el("span", { className: "project", textContent: project }), ` / ${wt ? proseName(wt.label) : ""}`),
         o.querySelector(".flap")!.cloneNode(true),
       );
-      b.setAttribute("aria-label", o.title);
       return b;
     }),
     ...cededActions().map((src) => {
-      const keys = src.getAttribute("aria-keyshortcuts")?.replace("Control", "Ctrl");
       // A ação direto, não src.click(): o original quebrou para fora da faixa e está inert.
       const act = () => (src === urlEl ? invoke("open_url", { url: urlEl.href }) : toggleRun(src === haltAllEl));
-      const b = el(
-        "button",
-        { type: "button", className: "more-item", title: src.title, onclick: () => (moreMenu.hidePopover(), act()) },
-        el("span", { textContent: src === urlEl ? tr("Abrir {0} no navegador", urlEl.textContent) : src.dataset.label! }),
-        ...(keys ? [el("span", { className: "keys", textContent: keys })] : []),
-      );
+      const b = menuItem(moreMenu, src === urlEl ? tr("Abrir {0} no navegador", urlEl.textContent) : src.dataset.label!, act, {
+        title: src.title,
+        keys: src.getAttribute("aria-keyshortcuts")?.replace(/Control/g, "Ctrl"),
+        disabled: !!src.getAttribute("aria-disabled"),
+      });
       if (src.dataset.ends) b.dataset.ends = src.dataset.ends;
-      if (src.getAttribute("aria-disabled")) b.setAttribute("aria-disabled", "true");
       return b;
     }),
     // Reiniciar a aba aberta: só no ⋯ (o encaixe do cabeçalho é delicado) e só no lado com start. Fora de hora (nada
     // rodando, troca ou parada em andamento) fica aria-disabled; o clique diz por quê no cabeçalho, como o atalho.
     ...(restartPane
       ? [
-          el(
-            "button",
-            {
-              type: "button",
-              className: "more-item",
-              title: tr("Parar {0} e subir de novo (Ctrl+Shift+R; com Alt, os dois lados)", TAB_LABEL[tab]),
-              ariaKeyShortcuts: "Control+Shift+R",
-              ariaDisabled: stopping.has(current!.project) || halting.has(ck!) || !(starting.has(ck!) || busy.has(restartPane.ptyId)) ? "true" : null,
-              onclick: () => (moreMenu.hidePopover(), toggleRun(false, "restart"))
-            },
-            el("span", { textContent: tr("Reiniciar {0}", TAB_LABEL[tab]) }),
-            el("span", { className: "keys", textContent: "Ctrl+Shift+R" })
-          )
+          menuItem(moreMenu, tr("Reiniciar {0}", TAB_LABEL[tab]), () => toggleRun(false, "restart"), {
+            title: tr("Parar {0} e subir de novo (Ctrl+Shift+R; com Alt, os dois lados)", TAB_LABEL[tab]),
+            keys: "Ctrl+Shift+R",
+            disabled: stopping.has(current!.project) || halting.has(ck!) || !(starting.has(ck!) || busy.has(restartPane.ptyId)),
+          }),
         ]
       : []),
     ...(current
       ? [
           pullItem(current.project, current.wt),
-          el("button", { type: "button", className: "more-item", title: `gh pr view ${tabBranch(current.wt)} --web`, onclick: () => (moreMenu.hidePopover(), viewPr()) }, el("span", { textContent: tr("Ver PR") })),
-          el(
-            "button",
-            { type: "button", className: "more-item", title: current.wt[editorSide(current.wt)]!.path, ariaKeyShortcuts: "Control+Shift+O", onclick: () => (moreMenu.hidePopover(), openInEditor()) },
-            el("span", { textContent: tr("Abrir no editor") }),
-            el("span", { className: "keys", textContent: "Ctrl+Shift+O" }),
-          ),
+          menuItem(moreMenu, tr("Ver PR"), () => viewPr(), { title: `gh pr view ${tabBranch(current.wt)} --web` }),
+          menuItem(moreMenu, tr("Abrir no editor"), () => openInEditor(), { title: current.wt[editorSide(current.wt)]!.path, keys: "Ctrl+Shift+O" }),
           el("button", { type: "button", className: "more-item", title: tr("Escolher o editor (fica para o Ctrl+Shift+O)"), onclick: openWith }, el("span", { textContent: tr("Abrir com…") })),
         ]
       : []),
@@ -270,14 +254,15 @@ moreMenu.addEventListener("toggle", (e) => {
   moreMenu.querySelector<HTMLElement>("button")?.focus();
 });
 
-// Setas andam pelos itens, como no painel e nas abas (só o Tab andava).
-moreMenu.addEventListener("keydown", (e) => {
+/** Setas andam pelos itens do ⋯ e do menu da linha, como no painel e nas abas (só o Tab andava). */
+function menuArrows(e: KeyboardEvent) {
   if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
   e.preventDefault();
-  const items = [...moreMenu.querySelectorAll<HTMLElement>("button")];
+  const items = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("button")];
   const at = items.indexOf(document.activeElement as HTMLElement);
   items[(at + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
-});
+}
+moreMenu.addEventListener("keydown", menuArrows);
 
 urlEl.addEventListener("click", (e) => {
   e.preventDefault();
@@ -322,21 +307,8 @@ function pullBlocked(project: string, wt: Worktree) {
 
 /** "Atualizar (pull)" no ⋯, para a worktree em serviço. Indisponível, fica aria-disabled com o motivo, e o clique o diz. */
 function pullItem(project: string, wt: Worktree, menu = moreMenu) {
-  const blocked = pullBlocked(project, wt);
   const paths = TABS.flatMap(t => (wt[t] ? [wt[t]!.path] : []));
-  const b = el(
-    "button",
-    {
-      type: "button",
-      className: "more-item",
-      title: blocked ?? tr("git pull --ff-only em {0}", paths.join(tr(" e "))),
-      ariaLabel: blocked ? tr("Atualizar (pull): indisponível; {0}", blocked) : tr("Atualizar (pull)"),
-      onclick: () => (menu.hidePopover(), pullWorktree(project, wt))
-    },
-    el("span", { textContent: tr("Atualizar (pull)") })
-  );
-  if (blocked) b.setAttribute("aria-disabled", "true");
-  return b;
+  return menuItem(menu, tr("Atualizar (pull)"), () => pullWorktree(project, wt), { title: tr("git pull --ff-only em {0}", paths.join(tr(" e "))), blocked: pullBlocked(project, wt) });
 }
 
 /** `git pull --ff-only` em cada lado, em paralelo (backend). "Atualizada: feat/x" ou "Já estava em dia" como recado de
@@ -418,14 +390,12 @@ async function renderEditors() {
     headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: tr("Não consegui listar os editores") }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) }));
   }
   if (!editorsMode) return;
-  const pick = (id: string | null) => () => {
-    moreMenu.hidePopover();
+  const pick = (id: string | null) => () =>
     invoke("set_editor", { id }).then(() => openInEditor(), (err) => headerNote(true, current?.project ?? null, el("span", { className: "editor", textContent: tr("Não gravei o editor") }), el("span", { className: "why", textContent: `· ${err}`, title: String(err) })));
-  };
-  const keys = (on: boolean) => (on ? [el("span", { className: "keys", textContent: "Ctrl+Shift+O" })] : []);
-  const items = list.editors.map((e) => el("button", { type: "button", className: "more-item", title: e.id, onclick: pick(e.id) }, el("span", { textContent: e.name }), ...keys(e.id === list.chosen)));
-  if (list.command) items.push(el("button", { type: "button", className: "more-item", title: tr("editorCommand do config"), onclick: pick(null) }, el("span", { className: "mono", textContent: list.command }), ...keys(!list.chosen)));
-  if (!items.length) items.push(el("button", { type: "button", className: "more-item", title: tr("Defina editorCommand no config"), onclick: () => (moreMenu.hidePopover(), invoke("open_config")) }, el("span", { textContent: tr("Nenhum editor encontrado · Abrir config") })));
+  const keys = (on: boolean) => (on ? "Ctrl+Shift+O" : undefined);
+  const items = list.editors.map((e) => menuItem(moreMenu, e.name, pick(e.id), { title: e.id, keys: keys(e.id === list.chosen) }));
+  if (list.command) items.push(menuItem(moreMenu, el("span", { className: "mono", textContent: list.command }), pick(null), { title: tr("editorCommand do config"), keys: keys(!list.chosen) }));
+  if (!items.length) items.push(menuItem(moreMenu, tr("Nenhum editor encontrado · Abrir config"), () => invoke("open_config"), { title: tr("Defina editorCommand no config") }));
   moreMenu.replaceChildren(el("p", { className: "more-head", textContent: tr("Abrir com") }), ...items);
   (moreMenu.querySelector<HTMLElement>("button:has(.keys)") ?? moreMenu.querySelector<HTMLElement>("button"))?.focus();
 }
@@ -592,9 +562,8 @@ const shown = new Map<string, string>();
 function flap(state: LineState, id: string, text = FLAP[state]) {
   const changed = shown.has(id) && shown.get(id) !== `${state}:${text}`;
   shown.set(id, `${state}:${text}`);
-  const f = el("span", { className: `flap${changed ? " flip" : ""}` }, el("span", { textContent: text }));
+  const f = el("span", { className: `flap${changed ? " flip" : ""}`, ariaHidden: "true" }, el("span", { textContent: text }));
   f.dataset.state = state;
-  f.setAttribute("aria-hidden", "true");
   return f;
 }
 
@@ -739,8 +708,7 @@ function branchText(branch: string) {
 // ---------- terminais ----------
 
 async function createPane(t: Tab, side: Side, parent: HTMLElement, project: string): Promise<Pane> {
-  const paneEl = el("div", { className: "pane off" });
-  paneEl.setAttribute("role", "tabpanel");
+  const paneEl = el("div", { className: "pane off", role: "tabpanel" });
   paneEl.setAttribute("aria-labelledby", `tab-${t}`);
   parent.append(paneEl);
   const term = new Terminal({
@@ -1222,7 +1190,7 @@ function render(focus = false) {
       if (!wt[t]) continue;
       const b = el(
         "button",
-        { type: "button", id: `tab-${t}`, tabIndex: t === tab ? 0 : -1, onclick: () => setTab(t, true) },
+        { type: "button", id: `tab-${t}`, role: "tab", ariaSelected: String(t === tab), tabIndex: t === tab ? 0 : -1, onclick: () => setTab(t, true) },
         el("span", { textContent: TAB_LABEL[t] }),
         down.includes(t) ? el("span", { className: "sr", textContent: tr(" (caiu)") }) : null,
         parked.includes(t) ? el("span", { className: "sr", textContent: tr(" (parado à mão)") }) : null,
@@ -1233,8 +1201,6 @@ function render(focus = false) {
       b.classList.toggle("halting", stoppingTabs.includes(t));
       if (down.includes(t)) b.title = tr("Nada rodando no {0}", TAB_LABEL[t]);
       if (parked.includes(t)) b.title = tr("{0} parado à mão (Ctrl+Shift+S sobe)", TAB_LABEL[t]);
-      b.setAttribute("role", "tab");
-      b.setAttribute("aria-selected", String(t === tab));
       const pane = env?.panes[t];
       if (pane) b.setAttribute("aria-controls", pane.el.id);
       tabsEl.append(b);
@@ -1316,13 +1282,14 @@ function howItWorks() {
 function renderEmpty() {
   const missing = configError?.includes(tr("Não consegui ler"));
   const hadFocus = document.activeElement === document.body || emptyEl.contains(document.activeElement);
+  // Sem config, config quebrado e sem projeto começam igual: o texto, como funciona (menos no quebrado) e Criar projeto.
+  const aim = tr("Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel.");
+  const start = (text: string, how: boolean) => [el("p", { textContent: text }), ...(how ? [howItWorks()] : []), el("p", {}, el("button", { type: "button", className: "btn primary", textContent: tr("Criar projeto"), onclick: () => openProjectDialog() }))];
   emptyEl.replaceChildren(
     ...(configError
       ? [
           el("h2", { textContent: missing ? tr("Nenhum projeto configurado") : tr("O config tem um problema") }),
-          el("p", { textContent: missing ? tr("Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel.") : configError }),
-          ...(missing ? [howItWorks()] : []),
-          el("p", {}, el("button", { type: "button", className: "btn primary", textContent: tr("Criar projeto"), onclick: () => openProjectDialog() })),
+          ...start(missing ? aim : configError, !!missing),
           el("p", { textContent: tr("Ou edite {0} à mão; o painel relê quando você volta para a janela:", CONFIG_PATH) }),
           el("pre", { textContent: CONFIG_EXAMPLE }),
         ]
@@ -1331,12 +1298,7 @@ function renderEmpty() {
             el("h2", { textContent: tr("Nenhuma worktree aberta") }),
             el("p", {}, tr("Escolha uma no painel ou use "), el("kbd", { textContent: "Ctrl" }), el("kbd", { textContent: "Shift" }), el("kbd", { textContent: "K" }), "."),
           ]
-        : [
-            el("h2", { textContent: tr("Nenhum projeto ainda") }),
-            el("p", { textContent: tr("Aponte os repositórios da API e do front; as worktrees deles viram as linhas do painel.") }),
-            howItWorks(),
-            el("p", {}, el("button", { type: "button", className: "btn primary", textContent: tr("Criar projeto"), onclick: () => openProjectDialog() })),
-          ]),
+        : [el("h2", { textContent: tr("Nenhum projeto ainda") }), ...start(aim, true)]),
   );
   if (hadFocus) emptyEl.querySelector<HTMLButtonElement>(".btn.primary")?.focus();
 }
@@ -1476,6 +1438,7 @@ function fontWidth(e: HTMLElement) {
   const font = `${css.fontWeight} ${css.fontSize} ${css.fontFamily}`;
   return (t: string) => {
     measure.font = font;
+    // ponytail: o canvas ignora tabular-nums; 2px de folga, e o text-overflow do CSS segura o resto
     return measure.measureText(t).width + 2;
   };
 }
@@ -1567,6 +1530,7 @@ function lineButton(project: string, wt: Worktree) {
       type: "button",
       className: `line${live ? " live" : ""}`,
       tabIndex: -1,
+      ariaCurrent: currentKey() === k ? "true" : null,
       // O estado por extenso no title: o fio e a falta de palheta não se explicam sozinhos.
       title: [wt.label, STATE_HINT[state] ?? say(project, wt, state), git.text, endsText].filter(Boolean).join("\n"),
       ariaLabel: `${spokenLabel(wt.label)}${soloSay(wt)}: ${say(project, wt, state)}${git.text ? `; ${git.text}` : ""}`,
@@ -1591,7 +1555,6 @@ function lineButton(project: string, wt: Worktree) {
     b.setAttribute("aria-describedby", id);
   }
   b.dataset.key = k;
-  if (currentKey() === k) b.setAttribute("aria-current", "true");
   return b;
 }
 
@@ -1600,9 +1563,7 @@ function lineButton(project: string, wt: Worktree) {
 function gitBadge(g: ReturnType<typeof gitSummary>) {
   if (!g.dirty && !g.ahead && !g.behind) return null;
   const ab = (n: number, d: string) => (n ? el("span", {}, icon(d), String(n)) : null);
-  const b = el("span", { className: "git" }, g.dirty ? el("span", { className: "dirty" }) : null, ab(g.ahead, DIR.start!), ab(g.behind, DIR.stop!));
-  b.setAttribute("aria-hidden", "true");
-  return b;
+  return el("span", { className: "git", ariaHidden: "true" }, g.dirty ? el("span", { className: "dirty" }) : null, ab(g.ahead, DIR.start!), ab(g.behind, DIR.stop!));
 }
 
 // Rodando ou no meio de uma troca: não edita (renomear ou mover a pasta embaixo de um dev server o derruba).
@@ -1623,6 +1584,7 @@ function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
       tabIndex: -1,
       title: busyNow ? tr("{0}, {1}: troque para outra worktree do projeto antes de {2}", wt.label, say(project, wt, lineState(project, wt)), verb.toLowerCase()) : `${verb} ${wt.label}`,
       ariaLabel: busyNow ? tr("{0} {1}: indisponível, {2}; troque para outra worktree do projeto antes", verb, spoken, say(project, wt, lineState(project, wt))) : `${verb} ${spoken}`,
+      ariaDisabled: busyNow ? "true" : null,
       onclick: () => {
         const fresh = findWt(project, wt.id);
         if (fresh && !BUSY.includes(lineState(project, fresh))) open(project, fresh);
@@ -1630,7 +1592,6 @@ function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
     },
     icon(path),
   );
-  if (busyNow) b.setAttribute("aria-disabled", "true");
   b.dataset.key = `${kind}:${key(project, wt.id)}`;
   return b;
 }
@@ -1642,25 +1603,28 @@ function rowAction(kind: "edit" | "trash", project: string, wt: Worktree) {
 const rowMenu = $("#row-menu");
 let rowMenuFor: { project: string; wt: Worktree } | null = null;
 
-function rowMenuItem(label: string, act: () => void, opts: { title?: string; keys?: string; blocked?: string | null } = {}) {
-  const b = el(
+/** Item do ⋯ e do menu da linha. `blocked`: aria-disabled com o motivo, que o clique diz no cabeçalho em vez de agir;
+ *  `disabled`: só aria-disabled, a própria ação diz por quê (como o atalho). */
+function menuItem(menu: HTMLElement, label: string | HTMLElement, act: () => unknown, opts: { title?: string; keys?: string; blocked?: string | null; disabled?: boolean } = {}) {
+  const text = typeof label === "string" ? el("span", { textContent: label }) : label;
+  return el(
     "button",
     {
       type: "button",
       className: "more-item",
       title: opts.blocked ?? opts.title ?? "",
-      ariaLabel: opts.blocked ? tr("{0}: indisponível; {1}", label, opts.blocked) : null,
+      ariaLabel: opts.blocked ? tr("{0}: indisponível; {1}", text.textContent, opts.blocked) : null,
+      ariaKeyShortcuts: opts.keys?.replace(/Ctrl/g, "Control") ?? null,
+      ariaDisabled: opts.blocked || opts.disabled ? "true" : null,
       onclick: () => {
-        rowMenu.hidePopover();
-        if (opts.blocked) headerNote(false, rowMenuFor?.project ?? null, opts.blocked);
+        menu.hidePopover();
+        if (opts.blocked) headerNote(false, (menu === rowMenu ? rowMenuFor : current)?.project ?? null, opts.blocked);
         else act();
       },
     },
-    el("span", { textContent: label }),
+    text,
     ...(opts.keys ? [el("span", { className: "keys", textContent: opts.keys })] : []),
   );
-  if (opts.blocked) b.setAttribute("aria-disabled", "true");
-  return b;
 }
 
 function openRowMenu(project: string, wt: Worktree, x: number, y: number) {
@@ -1672,12 +1636,12 @@ function openRowMenu(project: string, wt: Worktree, x: number, y: number) {
   rowMenu.setAttribute("aria-label", tr("Ações de {0}", spokenLabel(wt.label)));
   rowMenu.replaceChildren(
     el("p", { className: "more-head", textContent: wt.label }),
-    ...(isCurrent ? [] : [rowMenuItem(tr("Abrir"), () => select(project, wt), { keys: "Enter" })]),
-    rowMenuItem(tr("Abrir no editor"), () => openInEditor(target), { title: wt[editorSide(wt)]!.path, keys: isCurrent ? "Ctrl+Shift+O" : undefined }),
-    rowMenuItem(tr("Ver PR"), () => viewPr(target), { title: `gh pr view ${tabBranch(wt)} --web` }),
+    ...(isCurrent ? [] : [menuItem(rowMenu, tr("Abrir"), () => select(project, wt), { keys: "Enter" })]),
+    menuItem(rowMenu, tr("Abrir no editor"), () => openInEditor(target), { title: wt[editorSide(wt)]!.path, keys: isCurrent ? "Ctrl+Shift+O" : undefined }),
+    menuItem(rowMenu, tr("Ver PR"), () => viewPr(target), { title: `gh pr view ${tabBranch(wt)} --web` }),
     pullItem(project, wt, rowMenu),
-    rowMenuItem(tr("Editar…"), () => openEditDialog(project, wt), { blocked: blocked(tr("editar")) }),
-    rowMenuItem(tr("Remover…"), () => openRemoveDialog(project, wt), { blocked: blocked(tr("remover")) }),
+    menuItem(rowMenu, tr("Editar…"), () => openEditDialog(project, wt), { blocked: blocked(tr("editar")) }),
+    menuItem(rowMenu, tr("Remover…"), () => openRemoveDialog(project, wt), { blocked: blocked(tr("remover")) }),
   );
   rowMenu.showPopover();
   // Dentro da janela: abre para a esquerda ou para cima quando não cabe.
@@ -1709,13 +1673,7 @@ rowMenu.addEventListener("toggle", (e) => {
   if (document.activeElement === document.body || rowMenu.contains(document.activeElement)) byKey(k)?.focus();
 });
 
-rowMenu.addEventListener("keydown", (e) => {
-  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-  e.preventDefault();
-  const items = [...rowMenu.querySelectorAll<HTMLElement>("button")];
-  const at = items.indexOf(document.activeElement as HTMLElement);
-  items[(at + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
-});
+rowMenu.addEventListener("keydown", menuArrows);
 
 const TRASH_ICON = "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v3.5M9 7v3.5";
 const PARALLEL_ICON = "M5.5 2.5h8v7h-8ZM5.5 6.5H2.5v7H11V9.5";
@@ -1745,24 +1703,38 @@ const openProblems = new Set<string>();
 // Último painel montado: igual, não troca os nós (um clique entre mousedown e mouseup cairia num nó descartado).
 let boardHtml: string[] = [];
 
+/** Erro recolhível do painel (de um projeto ou do config): aberto ou fechado sobrevive ao render, por `id` em openProblems,
+ *  e o foco também (data-key no resumo e no botão). */
+function problemBox(id: string, summary: string, code: string, ...extra: Node[]) {
+  const sum = el("summary", { textContent: summary });
+  const open = el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") });
+  sum.dataset.key = `problem:${id}:summary`;
+  open.dataset.key = `problem:${id}:open`;
+  return el(
+    "details",
+    { className: "problem", open: openProblems.has(id), ontoggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? openProblems.add(id) : openProblems.delete(id)) },
+    sum,
+    el("code", { textContent: code }),
+    ...extra,
+    open,
+  );
+}
+
 function renderBoard() {
   // O painel é recriado quando muda; o foco do teclado volta para o mesmo controle (linha, placa, +, erro), pela data-key.
   const focusedKey = board.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.key : undefined;
   const sections = config.projects.map((p) => {
-    const add = el(
-      "button",
-      {
-        type: "button",
-        className: "icon-btn",
-        title: p.error ? tr("Corrija o erro do projeto para criar worktrees") : tr("Nova worktree em {0} (Ctrl+Shift+N)", p.name),
-        ariaLabel: p.error ? tr("Nova worktree em {0}: indisponível, corrija o erro do projeto", p.name) : tr("Nova worktree em {0}", p.name),
-        // aria-disabled e não disabled: o teclado e o leitor de tela também chegam no motivo.
-        onclick: () => !p.error && openAddDialog(p.name),
-      },
-      icon("M8 3v10M3 8h10"),
-    );
-    if (p.error) add.setAttribute("aria-disabled", "true");
-    add.dataset.key = `add:${p.name}`;
+    // Criar e remover worktrees: com erro no projeto, aria-disabled e não disabled (o teclado e o leitor de tela também
+    // chegam no motivo); [title, nome acessível] com e sem erro.
+    const gated = (id: string, path: string, act: () => void, ok: [string, string], err: [string, string]) => {
+      const [title, ariaLabel] = p.error ? err : ok;
+      const b = el("button", { type: "button", className: "icon-btn", title, ariaLabel, ariaDisabled: p.error ? "true" : null, onclick: () => !p.error && act() }, icon(path));
+      b.dataset.key = `${id}:${p.name}`;
+      return b;
+    };
+    const add = gated("add", "M8 3v10M3 8h10", () => openAddDialog(p.name),
+      [tr("Nova worktree em {0} (Ctrl+Shift+N)", p.name), tr("Nova worktree em {0}", p.name)],
+      [tr("Corrija o erro do projeto para criar worktrees"), tr("Nova worktree em {0}: indisponível, corrija o erro do projeto", p.name)]);
     const par = el(
       "button",
       {
@@ -1770,40 +1742,18 @@ function renderBoard() {
         className: "icon-btn parallel",
         title: tr("Modo paralelo em {0}: {1}", p.name, p.parallel ? tr("ligado, as worktrees sobem juntas") : tr("desligado, abrir uma encerra a outra")),
         ariaLabel: tr("Modo paralelo em {0}", p.name),
+        ariaPressed: String(p.parallel),
         onclick: () => toggleParallel(p.name),
       },
       icon(PARALLEL_ICON),
     );
-    par.setAttribute("aria-pressed", String(p.parallel));
     par.dataset.key = `parallel:${p.name}`;
-    const bulk = el(
-      "button",
-      {
-        type: "button",
-        className: "icon-btn",
-        title: p.error ? tr("Corrija o erro do projeto para remover worktrees") : tr("Remover worktrees de {0}…", p.name),
-        ariaLabel: p.error ? tr("Remover worktrees de {0}: indisponível, corrija o erro do projeto", p.name) : tr("Remover worktrees de {0}", p.name),
-        onclick: () => !p.error && openBulkRemove(p.name),
-      },
-      icon(TRASH_ICON),
-    );
-    if (p.error) bulk.setAttribute("aria-disabled", "true");
-    bulk.dataset.key = `bulk:${p.name}`;
+    const bulk = gated("bulk", TRASH_ICON, () => openBulkRemove(p.name),
+      [tr("Remover worktrees de {0}…", p.name), tr("Remover worktrees de {0}", p.name)],
+      [tr("Corrija o erro do projeto para remover worktrees"), tr("Remover worktrees de {0}: indisponível, corrija o erro do projeto", p.name)]);
     const problem = p.error
-      ? el(
-          "details",
-          {
-            className: "problem",
-            open: openProblems.has(p.name),
-            ontoggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? openProblems.add(p.name) : openProblems.delete(p.name)),
-          },
-          el("summary", { textContent: projectErrorSummary(p.error) }),
-          el("code", { textContent: p.error }),
-          el("p", {}, tr("Ajuste o caminho em "), el("code", { textContent: CONFIG_PATH }), tr(" e volte para a janela: o painel relê sozinho.")),
-          el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") }),
-        )
+      ? problemBox(p.name, projectErrorSummary(p.error), p.error, el("p", {}, tr("Ajuste o caminho em "), el("code", { textContent: CONFIG_PATH }), tr(" e volte para a janela: o painel relê sozinho.")))
       : null;
-    if (problem) keyFocusables(problem, `problem:${p.name}`);
     // Recolhido, o projeto ainda mostra a worktree ativa: o que está de pé não some da tela.
     const open = !collapsed.has(p.name);
     // Em paralelo, recolhido mostra todas as de pé.
@@ -1814,6 +1764,7 @@ function renderBoard() {
       {
         type: "button",
         className: "fold",
+        ariaExpanded: String(open),
         title: `${open ? tr("Recolher") : tr("Expandir")} ${p.name}${p.error && !open ? `\n${projectErrorSummary(p.error)}` : ""}`,
         onclick: () => {
           open ? collapsed.add(p.name) : collapsed.delete(p.name);
@@ -1827,7 +1778,6 @@ function renderBoard() {
       hidden ? el("span", { className: "count", textContent: `+${hidden}`, ariaHidden: "true" }) : null,
       hidden ? el("span", { className: "sr", textContent: tr(", {0} ocultas", hidden) }) : null,
     );
-    fold.setAttribute("aria-expanded", String(open));
     fold.dataset.key = `fold:${p.name}`;
     // Ordem do git, fixa: como num painel de partidas, só a palheta vira; a linha não sai do lugar sob o cursor.
     return el(
@@ -1842,19 +1792,8 @@ function renderBoard() {
   // Config quebrado com uma worktree aberta (o centro está no terminal): o painel continua com a última leitura boa e diz por que parou de atualizar.
   if (configError && config.projects.length && current)
     sections.unshift(
-      el(
-        "section",
-        { className: "platform" },
-        el(
-          "details",
-          { className: "problem", open: openProblems.has(CONFIG_PATH), ontoggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? openProblems.add(CONFIG_PATH) : openProblems.delete(CONFIG_PATH)) },
-          el("summary", { textContent: tr("O config tem um problema; o painel mostra a última leitura boa.") }),
-          el("code", { textContent: configError }),
-          el("button", { type: "button", className: "btn small", textContent: tr("Abrir o config.json"), onclick: () => invoke("open_config") }),
-        ),
-      ),
+      el("section", { className: "platform" }, problemBox(CONFIG_PATH, tr("O config tem um problema; o painel mostra a última leitura boa."), configError)),
     );
-  if (configError && config.projects.length && current) keyFocusables(sections[0], "problem:config");
   // Sem projeto: só a placa em branco. A explicação e a ação ficam no centro da janela; uma linha
   // "Nenhuma worktree ainda" aqui repetia o que o centro já diz.
   if (!config.projects.length)
@@ -1885,12 +1824,6 @@ function renderBoard() {
  *  e o seletor nunca casava (o foco não voltava à linha depois de o painel ser recriado). */
 const byKey = (k: string) => [...board.querySelectorAll<HTMLElement>("[data-key]")].find((e) => e.dataset.key === k);
 
-/** Resumo e botão de um erro ganham chave: com o foco neles, o painel recriado devolve o foco ao mesmo lugar. */
-function keyFocusables(root: HTMLElement, prefix: string) {
-  root.querySelector<HTMLElement>("summary")!.dataset.key = `${prefix}:summary`;
-  root.querySelector<HTMLElement>("button")!.dataset.key = `${prefix}:open`;
-}
-
 // Mede o texto truncado sem reflow (fitBranches).
 const measure = document.createElement("canvas").getContext("2d")!;
 
@@ -1904,25 +1837,18 @@ function fitBranches() {
     b.classList.remove("tight");
     rests[i].textContent = rests[i].dataset.full!;
   });
-  const sizes = rests.map((r) => {
-    const css = getComputedStyle(r);
-    return {
-      // com subpixel (textWidth): os inteiros deixavam a reticência do CSS cortar o fim
-      avail: r.getBoundingClientRect().width,
-      need: textWidth(r),
-      prefix: (r.previousElementSibling as HTMLElement).offsetWidth,
-      // o shorthand css.font volta vazio com font-variant-numeric definido
-      font: `${css.fontWeight} ${css.fontSize} ${css.fontFamily}`,
-      em: parseFloat(css.fontSize),
-    };
-  });
+  const sizes = rests.map((r) => ({
+    // com subpixel (textWidth): os inteiros deixavam a reticência do CSS cortar o fim
+    avail: r.getBoundingClientRect().width,
+    need: textWidth(r),
+    prefix: (r.previousElementSibling as HTMLElement).offsetWidth,
+    w: fontWidth(r),
+    em: parseFloat(getComputedStyle(r).fontSize),
+  }));
   branches.forEach((b, i) => {
-    const { need, prefix, font, em } = sizes[i];
+    const { need, prefix, w, em } = sizes[i];
     let { avail } = sizes[i];
     if (need <= avail) return;
-    measure.font = font;
-    // ponytail: o canvas ignora tabular-nums; 2px de folga, e o text-overflow do CSS segura o resto
-    const w = (s: string) => measure.measureText(s).width + 2;
     const full = rests[i].dataset.full!;
     // O começo do nome ficaria com menos de 3em ao lado do prefixo: o prefixo sai.
     if (prefix && avail - w(`…${nameTail(full)}`) < 3 * em) {
@@ -2465,15 +2391,13 @@ function renderPalette(reset = false) {
           const project = el("span", { className: "project", textContent: it.project });
           markHits(label, terms, it.wt.label.toLowerCase(), it.project.toLowerCase());
           markHits(project, terms, it.project.toLowerCase(), it.wt.label.toLowerCase());
-          const li = el("li", { id: `opt-${i}`, onclick: () => choose(it) }, label, project, flap(state, `pal:${key(it.project, it.wt.id)}`, flapText(it.project, it.wt, state)));
+          const li = el("li", { id: `opt-${i}`, role: "option", ariaSelected: String(i === sel), onclick: () => choose(it) }, label, project, flap(state, `pal:${key(it.project, it.wt.id)}`, flapText(it.project, it.wt, state)));
           // Nome falado inteiro, com pausas e o lado: os spans juntos liam "hotfix/loginATUAL interno : rodando".
           // O que o Enter mata também na opção: a prévia ENCERRA é visual, e o rodapé só fala quando muda.
           const kills = wouldStop(it.project, it.wt.id);
           li.setAttribute("aria-label", `${spokenLabel(it.wt.label)}${isCurrent ? tr(", atual") : ""}${soloSay(it.wt)}, ${it.project}: ${say(it.project, it.wt, state)}${kills ? tr("; encerra {0}", spokenLabel(kills.label)) : ""}`);
           // Tinta cheia só no que está em serviço (rodando, em movimento, a atual), como no painel.
           if (LIVE.includes(state) || isCurrent) li.classList.add("live");
-          li.setAttribute("role", "option");
-          li.setAttribute("aria-selected", String(i === sel));
           return li;
         })
       : [
@@ -2608,12 +2532,8 @@ function worktreeErrorSummary(message: string): { field: "dir" | "base" | "branc
 }
 
 /** Botão ocupado: aria-disabled (o foco continua nele; disabled jogaria o foco no body, atrás do diálogo) e o texto do que está fazendo. */
-function setBusy(button: HTMLButtonElement, label: string) {
-  button.setAttribute("aria-disabled", "true");
-  button.textContent = label;
-}
-function clearBusy(button: HTMLButtonElement, label: string) {
-  button.removeAttribute("aria-disabled");
+function setBusy(button: HTMLButtonElement, label: string, busy = true) {
+  button.ariaDisabled = busy ? "true" : null;
   button.textContent = label;
 }
 const isBusy = (button: HTMLElement | null) => button?.getAttribute("aria-disabled") === "true";
@@ -2853,7 +2773,7 @@ addForm.addEventListener("submit", async (e) => {
       markInvalid(branchInput, addError);
     }
   } finally {
-    clearBusy(submit, addSubmitLabel());
+    setBusy(submit, addSubmitLabel(), false);
   }
   // Mesmo com erro parcial (ex.: API criada, front falhou) o que foi criado aparece na lista.
   await refresh();
@@ -3147,7 +3067,7 @@ editForm.addEventListener("submit", async (e) => {
     }
     return;
   } finally {
-    clearBusy(submit, tr("Salvar"));
+    setBusy(submit, tr("Salvar"), false);
   }
   await afterEdit(ed, pair);
 });
@@ -3433,7 +3353,7 @@ removeForm.addEventListener("submit", async (e) => {
     }
     return;
   } finally {
-    clearBusy(removeOk, tr("Remover"));
+    setBusy(removeOk, tr("Remover"), false);
   }
   await forgetWorktree(project, wt);
   headerNote(false, null, [tr("Removida: {0}", wt.label), ...notes].join(" · "));
@@ -3555,19 +3475,10 @@ function syncBulk() {
 const MAIN_WHY = tr("· pasta principal do repositório: o git não remove");
 
 function bulkRow(project: string, wt: Worktree) {
-  const box = document.createElement("input");
-  box.type = "checkbox";
-  box.value = wt.id;
-  const why = document.createElement("span");
-  why.className = "why";
   const state = lineState(project, wt);
-  if (BUSY.includes(state)) {
-    box.disabled = true;
-    why.textContent = tr("· {0}: troque antes", say(project, wt, state));
-  } else if (bulkMains.has(wt.id)) {
-    box.disabled = true;
-    why.textContent = MAIN_WHY;
-  }
+  const reason = BUSY.includes(state) ? tr("· {0}: troque antes", say(project, wt, state)) : bulkMains.has(wt.id) ? MAIN_WHY : "";
+  const box = Object.assign(document.createElement("input"), { type: "checkbox", value: wt.id, disabled: !!reason });
+  const why = el("span", { className: "why", textContent: reason });
   return el("li", {}, el("label", { className: "check" }, box, " ", el("span", {}, ...labelNodes(wt.label)), why));
 }
 
@@ -3582,7 +3493,7 @@ function openBulkRemove(project: string) {
   bulkList.replaceChildren(...proj.worktrees.map((wt) => bulkRow(project, wt)));
   bulkBranch.checked = false;
   bulkError.replaceChildren();
-  clearBusy(bulkOk, tr("Remover"));
+  setBusy(bulkOk, tr("Remover"), false);
   syncBulk();
   bulkDialog.showModal();
   // Destrutivo: o foco começa no Cancelar, como no Remover.
@@ -3648,7 +3559,7 @@ bulkForm.addEventListener("submit", async (e) => {
       if (fe.created.length) await forgetWorktree(project, wt, false);
     }
   }
-  clearBusy(bulkOk, tr("Remover"));
+  setBusy(bulkOk, tr("Remover"), false);
   await refresh();
   render();
   if (removed.length) headerNote(false, project, [tr("Removidas: {0}", removed.join(", ")), ...notes].join(" · "));
@@ -3780,7 +3691,7 @@ async function cloneFromGithub(t: Tab, button: HTMLButtonElement) {
     msg.textContent = String(err);
     markInvalid(input, msg);
   } finally {
-    clearBusy(button, tr("Clonar…"));
+    setBusy(button, tr("Clonar…"), false);
     input.readOnly = false;
   }
 }
@@ -3902,7 +3813,7 @@ projectForm.addEventListener("submit", async (e) => {
       markInvalid(pfield("name"), projectError);
     }
   } finally {
-    clearBusy(submit, tr("Criar projeto"));
+    setBusy(submit, tr("Criar projeto"), false);
   }
 });
 
@@ -3912,14 +3823,12 @@ $("#new-project").addEventListener("click", () => openProjectDialog());
 // ---------- reler worktrees ----------
 
 const reloadBtn = $<HTMLButtonElement>("#reload");
-let reloading = false;
 
 const worktreeNames = () => new Map(config.projects.flatMap((p) => p.worktrees.map((wt) => [key(p.name, wt.id), `${p.name} / ${wt.label}`] as const)));
 
 /** Relê o `git worktree list` na hora (worktree criada pelo terminal, por exemplo) e diz no cabeçalho o que mudou. */
 async function reload() {
-  if (reloading) return;
-  reloading = true;
+  if (isBusy(reloadBtn)) return;
   // aria-disabled e não disabled: o botão focado continua com o foco do teclado.
   reloadBtn.setAttribute("aria-disabled", "true");
   reloadBtn.setAttribute("aria-busy", "true");
@@ -3927,7 +3836,6 @@ async function reload() {
   try {
     await refresh();
   } finally {
-    reloading = false;
     reloadBtn.removeAttribute("aria-disabled");
     reloadBtn.removeAttribute("aria-busy");
   }
@@ -4093,14 +4001,10 @@ window.addEventListener(
   (e) => {
     // Com um diálogo aberto, nada atrás dele responde: a paleta abriria presa sob o véu.
     if (!e.ctrlKey || !e.shiftKey || document.querySelector("dialog[open]")) return;
-    // Com a paleta aberta, só o próprio Ctrl+Shift+K (que a fecha): os outros agiam atrás dela (Ctrl+Shift+X parava a API
-    // e o rodapé dela ficava desatualizado).
-    if (!palette.hidden && e.code !== "KeyK") {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
     if (e.code === "KeyK") palette.hidden ? openPalette() : closePalette();
+    // Com a paleta aberta, só o próprio Ctrl+Shift+K (que a fecha): os outros, engolidos aqui, agiam atrás dela
+    // (Ctrl+Shift+X parava a API e o rodapé dela ficava desatualizado).
+    else if (!palette.hidden) {}
     else if (e.code === "KeyB") toggleAndFocus();
     else if (e.code === "KeyE") focusBoard();
     else if (e.code === "KeyH") helpEl.togglePopover();
@@ -4309,7 +4213,7 @@ async function installUpdate(button?: HTMLButtonElement) {
   } catch (e) {
     headerNote(true, null, tr("Não consegui atualizar: {0}", e instanceof Error ? e.message : e), releaseLink());
   } finally {
-    if (button) clearBusy(button, tr("Atualizar"));
+    if (button) setBusy(button, tr("Atualizar"), false);
   }
 }
 
@@ -4341,7 +4245,7 @@ async function checkUpdate(manual = false) {
   } catch (e) {
     if (manual) renderVersion(tr("Não consegui verificar: {0}", e instanceof Error ? e.message : e));
   } finally {
-    if (manual) clearBusy(checkBtn, tr("Verificar agora"));
+    if (manual) setBusy(checkBtn, tr("Verificar agora"), false);
     syncTray();
   }
 }

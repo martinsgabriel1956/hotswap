@@ -1,14 +1,11 @@
 /// Idioma das mensagens que saem daqui (erros, bandeja, diálogo de sair): o front diz qual com set_lang ao abrir.
 static EN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-fn en() -> bool {
-    EN.load(std::sync::atomic::Ordering::Relaxed)
-}
 
 /// `tr!("Já existe {}.", "{} already exists.", dest.display())`: o format! do idioma atual.
 #[macro_export]
 macro_rules! tr {
     ($pt:literal, $en:literal $(, $a:expr)* $(,)?) => {
-        if $crate::en() { format!($en $(, $a)*) } else { format!($pt $(, $a)*) }
+        if $crate::EN.load(std::sync::atomic::Ordering::Relaxed) { format!($en $(, $a)*) } else { format!($pt $(, $a)*) }
     };
 }
 
@@ -16,37 +13,10 @@ mod host_env;
 mod pty;
 mod worktrees;
 
-use std::path::Path;
-
 use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, WindowEvent, Wry};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
-
-/// O app se chamava switch-terminal. Na primeira abertura como Hotswap, o config e os dados do webview
-/// (última worktree por projeto, recentes, barra lateral) mudam para as pastas do nome novo.
-fn migrate_from_switch_terminal() {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let data = std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| format!("{home}/.local/share"));
-    move_if_new(
-        Path::new(&format!("{home}/.config/switch-terminal")),
-        Path::new(&format!("{home}/.config/hotswap")),
-    );
-    move_if_new(
-        Path::new(&format!("{data}/dev.gabriel.switch-terminal")),
-        Path::new(&format!("{data}/dev.gabriel.hotswap")),
-    );
-}
-
-/// Move `old` para `new` só quando `new` ainda não existe: depois da primeira vez, não mexe em nada.
-fn move_if_new(old: &Path, new: &Path) {
-    if new.exists() || !old.exists() {
-        return;
-    }
-    if let Err(e) = std::fs::rename(old, new) {
-        eprintln!("não deu para mover {} para {}: {e}", old.display(), new.display());
-    }
-}
 
 fn show_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
@@ -73,16 +43,6 @@ fn confirm_end(app: &AppHandle, message: String, title: String, button: String, 
                 then(&handle);
             }
         });
-}
-
-fn quit(app: &AppHandle) {
-    confirm_end(
-        app,
-        tr!("Há processos rodando nos terminais. Sair encerra todos eles.", "Processes are running in the terminals. Quitting ends all of them."),
-        tr!("Sair do Hotswap", "Quit Hotswap"),
-        tr!("Sair", "Quit"),
-        |app| app.exit(0),
-    );
 }
 
 /// Reinicia o app (versão instalada pelo update, idioma novo); os PTYs morrem antes, como ao sair.
@@ -187,7 +147,13 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => show_window(app),
-            "quit" => quit(app),
+            "quit" => confirm_end(
+                app,
+                tr!("Há processos rodando nos terminais. Sair encerra todos eles.", "Processes are running in the terminals. Quitting ends all of them."),
+                tr!("Sair do Hotswap", "Quit Hotswap"),
+                tr!("Sair", "Quit"),
+                |app| app.exit(0),
+            ),
             // Toda ação do front traz a janela: a troca pode pedir portas, e o resultado aparece nela.
             id => {
                 if let Some(action) = id.strip_prefix(UI_ID) {
@@ -207,8 +173,6 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 pub fn run() {
     #[cfg(target_os = "macos")]
     host_env::adopt_shell_path();
-    // Antes do Builder: o webview abre já lendo a pasta de dados do identifier novo.
-    migrate_from_switch_terminal();
     tauri::Builder::default()
         // Abrir o app de novo só traz a janela existente: duas instâncias subiriam os dev servers em dobro.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_window(app)))
@@ -274,35 +238,4 @@ pub fn run() {
                 show_window(app);
             }
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn move_if_new_moves_once_and_never_overwrites() {
-        let tmp = std::env::temp_dir().join(format!("hotswap-migrate-{}", std::process::id()));
-        let old = tmp.join("old");
-        let new = tmp.join("new");
-        std::fs::create_dir_all(&old).unwrap();
-        std::fs::write(old.join("config.json"), "antigo").unwrap();
-
-        move_if_new(&old, &new);
-        assert!(!old.exists());
-        assert_eq!(std::fs::read_to_string(new.join("config.json")).unwrap(), "antigo");
-
-        // O antigo reaparece (app velho ainda aberto): o novo continua valendo.
-        std::fs::create_dir_all(&old).unwrap();
-        std::fs::write(old.join("config.json"), "recriado").unwrap();
-        move_if_new(&old, &new);
-        assert_eq!(std::fs::read_to_string(new.join("config.json")).unwrap(), "antigo");
-        assert!(old.exists());
-
-        // Sem nada para mover, nada acontece.
-        move_if_new(&tmp.join("nada"), &tmp.join("outro"));
-        assert!(!tmp.join("outro").exists());
-
-        std::fs::remove_dir_all(&tmp).unwrap();
-    }
 }

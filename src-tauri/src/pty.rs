@@ -21,10 +21,6 @@ pub struct Ptys {
     map: Mutex<HashMap<u32, Pty>>,
 }
 
-fn size(cols: u16, rows: u16) -> PtySize {
-    PtySize { rows, cols, pixel_width: 0, pixel_height: 0 }
-}
-
 #[tauri::command]
 pub fn pty_spawn(
     ptys: State<Ptys>,
@@ -34,7 +30,7 @@ pub fn pty_spawn(
     on_data: Channel,
 ) -> Result<u32, String> {
     let pair = native_pty_system()
-        .openpty(size(cols, rows))
+        .openpty(PtySize { rows, cols, ..Default::default() })
         .map_err(|e| e.to_string())?;
 
     #[cfg(unix)]
@@ -63,14 +59,9 @@ pub fn pty_spawn(
     // Bytes crus via Channel chegam como ArrayBuffer no JS; o xterm decodifica UTF-8 partido entre chunks.
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    if on_data.send(InvokeResponseBody::Raw(buf[..n].to_vec())).is_err() {
-                        break;
-                    }
-                }
+        while let Ok(n @ 1..) = reader.read(&mut buf) {
+            if on_data.send(InvokeResponseBody::Raw(buf[..n].to_vec())).is_err() {
+                break;
             }
         }
     });
@@ -91,7 +82,7 @@ pub fn pty_write(ptys: State<Ptys>, id: u32, data: String) -> Result<(), String>
 pub fn pty_resize(ptys: State<Ptys>, id: u32, cols: u16, rows: u16) -> Result<(), String> {
     let map = ptys.map.lock().unwrap();
     let pty = map.get(&id).ok_or(crate::tr!("pty não encontrado", "pty not found"))?;
-    pty.master.resize(size(cols, rows)).map_err(|e| e.to_string())
+    pty.master.resize(PtySize { rows, cols, ..Default::default() }).map_err(|e| e.to_string())
 }
 
 impl Pty {
@@ -119,10 +110,6 @@ impl Pty {
 }
 
 impl Ptys {
-    fn busy(&self, id: u32) -> Option<i32> {
-        self.map.lock().unwrap().get(&id).and_then(Pty::busy)
-    }
-
     pub fn any_busy(&self) -> bool {
         self.map.lock().unwrap().values().any(|p| p.busy().is_some())
     }
@@ -147,12 +134,7 @@ pub fn pty_kill(ptys: State<Ptys>, id: u32) {
 #[tauri::command]
 pub fn pty_status(ptys: State<Ptys>, ids: Vec<u32>) -> Vec<Option<String>> {
     let map = ptys.map.lock().unwrap();
-    ids.iter()
-        .map(|id| {
-            let pg = map.get(id).and_then(Pty::busy)?;
-            Some(group_name(pg))
-        })
-        .collect()
+    ids.iter().map(|id| map.get(id).and_then(Pty::busy).map(group_name)).collect()
 }
 
 /// A porta aceita conexão TCP em localhost? IPv4 e depois IPv6: o Node 17+ resolve "localhost" para ::1, e o dev server
@@ -210,7 +192,8 @@ pub fn notify(summary: String, body: String) {
 /// "Forçar agora" no aviso de troca: SIGKILL no que estiver rodando, sem esperar o prazo.
 #[tauri::command]
 pub fn pty_force(ptys: State<Ptys>, id: u32) {
-    if let Some(pg) = ptys.busy(id) {
+    let pg = ptys.map.lock().unwrap().get(&id).and_then(Pty::busy);
+    if let Some(pg) = pg {
         kill_group(pg);
     }
 }
@@ -325,13 +308,13 @@ mod win {
 /// Estourou `timeout_ms`: SIGKILL no grupo. Retorna se precisou forçar.
 #[tauri::command]
 pub async fn pty_stop(ptys: State<'_, Ptys>, id: u32, timeout_ms: u64) -> Result<bool, String> {
-    let Some(pg) = ptys.busy(id) else { return Ok(false) };
+    let Some(pg) = ptys.map.lock().unwrap().get(&id).and_then(Pty::busy) else { return Ok(false) };
     if let Some(pty) = ptys.map.lock().unwrap().get_mut(&id) {
         pty.writer.write_all(b"\x03").map_err(|e| e.to_string())?;
     }
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     while Instant::now() < deadline {
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        std::thread::sleep(Duration::from_millis(100));
         if !group_alive(pg) {
             return Ok(false);
         }
@@ -342,7 +325,7 @@ pub async fn pty_stop(ptys: State<'_, Ptys>, id: u32, timeout_ms: u64) -> Result
         if !group_alive(pg) {
             break;
         }
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        std::thread::sleep(Duration::from_millis(50));
     }
     Ok(true)
 }
