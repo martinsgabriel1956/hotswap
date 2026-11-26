@@ -33,7 +33,7 @@ Pareia worktrees de dois repositórios diferentes (API + front) pelo nome da bra
 - Modo paralelo por projeto: as portas vão por variáveis de ambiente declaradas à mão no config (`parallelEnv`), num prefixo `env` visível no terminal.
 - Criar worktree (diretório e branch de origem por lado) e criar projeto pela UI, apontando pastas locais ou clonando do GitHub da conta logada no `gh` (layout bare); remover worktree pelo app (sem forçar); remover projeto não é feito pelo app.
 - Teclado: `Ctrl+Shift+K` paleta, `Ctrl+Shift+J` alterna abas, `Ctrl+Shift+B` barra lateral.
-- Interface em português do Brasil e inglês: segue o idioma do sistema, com escolha nos Ajustes (vale ao abrir de novo). O português é a fonte (`tr("…")`); a tradução fica em `src/en.ts`.
+- Interface em português do Brasil e inglês: segue o idioma do sistema, com escolha nos Ajustes (vale ao abrir de novo; trocar oferece Reiniciar). O português é a fonte (`tr("…")`); a tradução fica em `src/en.ts`.
 - Detalhes completos de comportamento em `SPEC.md`.
 
 ## Brand Commitments
